@@ -17,17 +17,18 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Generate manifest
+           - name: Generate manifest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: main
-          # Add/remove repos here:
+          # Per-repo config: you can pass either a string or an object
+          # - string: "owner/repo"  → uses LANGUAGE_FOLDERS below
+          # - object: { "name": "owner/repo", "include": ["people","places"], "asLang": "_datasets" }
           REPOS_JSON: >-
             [
               "bamundgaard/test-2025-10-13-BiblicaStudyNotesKeyTerms",
-              "BibleAquifer/ACAI"
+              { "name": "BibleAquifer/ACAI", "include": ["people","places","deities"], "asLang": "_datasets" }
             ]
-          # Language folders (uses 'fra' for French)
           LANGUAGE_FOLDERS_JSON: '["eng","fra","hin","por"]'
         run: |
           node - <<'NODE'
@@ -36,8 +37,10 @@ jobs:
 
           const GH_TOKEN = process.env.GH_TOKEN;
           const BRANCH = process.env.BRANCH || 'main';
-          const REPOS = JSON.parse(process.env.REPOS_JSON);
+          const RAW = JSON.parse(process.env.REPOS_JSON);
           const LANGUAGE_FOLDERS = JSON.parse(process.env.LANGUAGE_FOLDERS_JSON);
+
+          const REPOS = RAW.map(r => (typeof r === 'string' ? { name: r } : r));
 
           const IGNORE = [
             /^README(\.md|\.txt)?$/i, /^LICENSE(\.md|\.txt)?$/i,
@@ -103,8 +106,23 @@ jobs:
 
           (async ()=>{
             const manifest = { generatedAt: new Date().toISOString(), repos: [] };
-            for (const full of REPOS){
-              const [owner, repo] = full.split('/');
+
+            for (const cfg of REPOS){
+              const [owner, repo] = cfg.name.split('/');
+
+              // If repo has explicit "include" paths, crawl those and publish under asLang (default "_datasets")
+              if (cfg.include && cfg.include.length){
+                const asLang = cfg.asLang || "_datasets";
+                const languages = { [asLang]: [] };
+                for (const p of cfg.include){
+                  const files = await walk(owner, repo, p);
+                  languages[asLang].push(...files);
+                }
+                manifest.repos.push({ name: cfg.name, branch: BRANCH, languages });
+                continue;
+              }
+
+              // Else: use language folders at root
               const root = await listDir(owner, repo, '');
               const languages = {};
               for (const item of root){
@@ -112,13 +130,15 @@ jobs:
                   languages[item.name] = await walk(owner, repo, item.name);
                 }
               }
-              manifest.repos.push({ name: full, branch: BRANCH, languages });
+              manifest.repos.push({ name: cfg.name, branch: BRANCH, languages });
             }
+
             fs.mkdirSync('docs/data', { recursive: true });
             fs.writeFileSync('docs/data/manifest.json', JSON.stringify(manifest, null, 2));
             console.log('Wrote docs/data/manifest.json');
           })().catch(err=>{ console.error(err); process.exit(1); });
           NODE
+
 
       - name: Auto-commit manifest
         uses: stefanzweifel/git-auto-commit-action@v5
