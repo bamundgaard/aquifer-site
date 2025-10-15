@@ -1,30 +1,33 @@
 name: Build unified catalog manifest
 on:
-  schedule: [{ cron: "0 * * * *" }] # hourly; adjust as needed
+  schedule: [{ cron: "0 * * * *" }]   # hourly; adjust as needed
   workflow_dispatch: {}
 permissions:
   contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout site
         uses: actions/checkout@v4
-        with: { persist-credentials: false }
 
       - name: Setup Node
         uses: actions/setup-node@v4
-        with: { node-version: "20" }
+        with:
+          node-version: "20"
 
       - name: Generate manifest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: main
+          # Add/remove repos here:
           REPOS_JSON: >-
             [
               "bamundgaard/test-2025-10-13-BiblicaStudyNotesKeyTerms",
               "BibleAquifer/ACAI"
             ]
+          # Language folders (uses 'fra' for French)
           LANGUAGE_FOLDERS_JSON: '["eng","fra","hin","por"]'
         run: |
           node - <<'NODE'
@@ -117,15 +120,8 @@ jobs:
           })().catch(err=>{ console.error(err); process.exit(1); });
           NODE
 
-            - name: Configure git auth
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-
-      - name: Commit & push manifest
-        run: |
-          git add docs/data/manifest.json
-          git commit -m "Update unified catalog manifest [skip ci]" || echo "No changes"
-          git push
-
+      - name: Auto-commit manifest
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Update unified catalog manifest [skip ci]"
+          file_pattern: docs/data/manifest.json
