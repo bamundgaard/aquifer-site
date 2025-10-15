@@ -1,0 +1,126 @@
+name: Build unified catalog manifest
+on:
+  schedule: [{ cron: "0 * * * *" }] # hourly; adjust as needed
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout site
+        uses: actions/checkout@v4
+        with: { persist-credentials: false }
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with: { node-version: "20" }
+
+      - name: Generate manifest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: main
+          REPOS_JSON: >-
+            [
+              "bamundgaard/test-2025-10-13-BiblicaStudyNotesKeyTerms",
+              "BibleAquifer/ACAI"
+            ]
+          LANGUAGE_FOLDERS_JSON: '["eng","fra","hin","por"]'
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const https = require('https');
+
+          const GH_TOKEN = process.env.GH_TOKEN;
+          const BRANCH = process.env.BRANCH || 'main';
+          const REPOS = JSON.parse(process.env.REPOS_JSON);
+          const LANGUAGE_FOLDERS = JSON.parse(process.env.LANGUAGE_FOLDERS_JSON);
+
+          const IGNORE = [
+            /^README(\.md|\.txt)?$/i, /^LICENSE(\.md|\.txt)?$/i,
+            /^\.github$/i, /^\.gitignore$/i, /^\.gitattributes$/i, /^\.DS_Store$/i,
+            /^index(\.md|\.html)?$/i
+          ];
+
+          function gh(path){
+            const opts = {
+              hostname: 'api.github.com',
+              path,
+              headers: {
+                'User-Agent': 'aquifer-manifest-bot',
+                'Authorization': `Bearer ${GH_TOKEN}`,
+                'Accept': 'application/vnd.github+json'
+              }
+            };
+            return new Promise((resolve, reject)=>{
+              https.get(opts, res=>{
+                let data=''; res.on('data', d=>data+=d);
+                res.on('end', ()=>{
+                  if(res.statusCode>=200 && res.statusCode<300){
+                    try { resolve(JSON.parse(data)); } catch(e){ reject(e); }
+                  } else {
+                    reject(new Error(`GitHub ${res.statusCode}: ${data}`));
+                  }
+                });
+              }).on('error', reject);
+            });
+          }
+
+          function isIgnored(name){ return IGNORE.some(re => re.test(name)); }
+
+          async function listDir(owner, repo, path=''){
+            const enc = path ? `/${encodeURIComponent(path).replace(/%2F/g,'/')}` : '';
+            const out = await gh(`/repos/${owner}/${repo}/contents${enc}?ref=${BRANCH}`);
+            return Array.isArray(out) ? out : [out];
+          }
+
+          async function walk(owner, repo, basePath){
+            const acc = [];
+            async function recur(p){
+              const items = await listDir(owner, repo, p);
+              for (const it of items){
+                if (it.type === 'dir') {
+                  if (isIgnored(it.name)) continue;
+                  await recur(it.path);
+                } else if (it.type === 'file') {
+                  if (isIgnored(it.name)) continue;
+                  acc.push({
+                    path: it.path,
+                    size: it.size ?? null,
+                    sha: it.sha ?? null,
+                    downloadRaw: `https://raw.githubusercontent.com/${owner}/${repo}/${BRANCH}/${it.path}`,
+                    downloadCdn: `https://cdn.jsdelivr.net/gh/${owner}/${repo}@${BRANCH}/${it.path}`
+                  });
+                }
+              }
+            }
+            await recur(basePath);
+            return acc;
+          }
+
+          (async ()=>{
+            const manifest = { generatedAt: new Date().toISOString(), repos: [] };
+            for (const full of REPOS){
+              const [owner, repo] = full.split('/');
+              const root = await listDir(owner, repo, '');
+              const languages = {};
+              for (const item of root){
+                if (item.type === 'dir' && LANGUAGE_FOLDERS.includes(item.name)) {
+                  languages[item.name] = await walk(owner, repo, item.name);
+                }
+              }
+              manifest.repos.push({ name: full, branch: BRANCH, languages });
+            }
+            fs.mkdirSync('docs/data', { recursive: true });
+            fs.writeFileSync('docs/data/manifest.json', JSON.stringify(manifest, null, 2));
+            console.log('Wrote docs/data/manifest.json');
+          })().catch(err=>{ console.error(err); process.exit(1); });
+          NODE
+
+      - name: Commit & push manifest
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/data/manifest.json
+          git commit -m "Update unified catalog manifest [skip ci]" || echo "No changes"
+          git push
