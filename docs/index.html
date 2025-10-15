@@ -6,39 +6,33 @@
 <title>Aquifer Unified Catalog</title>
 <style>
   :root {
-    --bg: #0b1220;
-    --card: #0f1730;
-    --line: #1c2438;
-    --muted: #9aa3c7;
-    --text: #e6e8ee;
-    --accent: #7aa6ff;
-    --pill: #1b2743;
-    --btn: #121a33;
-    --btnh: #182247;
+    --bg:#0b1220; --card:#0f1730; --line:#1c2438; --muted:#9aa3c7; --text:#e6e8ee;
+    --accent:#7aa6ff; --pill:#1b2743; --btn:#121a33; --btnh:#182247;
     font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
   }
-  body { margin: 0; background: var(--bg); color: var(--text); }
-  a { color: inherit; }
-  header { padding: 24px; border-bottom: 1px solid var(--line); background: var(--bg); position: sticky; top: 0; z-index: 10; }
-  .brand { font-size: 22px; font-weight: 700; color: var(--accent); }
-  .subtitle { color: var(--muted); margin-top: 4px; }
-  main { max-width: 1100px; margin: 0 auto; padding: 24px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
-  .card h3 { margin: 0 0 8px; font-size: 18px; }
-  .muted { color: var(--muted); }
-  .btn { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; padding: 8px 12px; border: 1px solid #34405d; border-radius: 10px; background: var(--btn); color: var(--text); text-decoration: none; cursor: pointer; }
-  .btn:hover { background: var(--btnh); }
-  .crumbs { color: var(--muted); font-size: 14px; margin-bottom: 16px; }
-  .list { display: flex; flex-direction: column; gap: 10px; }
-  .row { display: flex; justify-content: space-between; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
-  .row-main { display: flex; flex-direction: column; }
-  .name { font-weight: 600; }
-  .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
-  footer { border-top: 1px solid var(--line); margin-top: 32px; padding: 24px; color: var(--muted); font-size: 12px; text-align: center; }
-  .searchbar { display: flex; gap: 10px; margin-bottom: 16px; }
-  .searchbar input { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #2a3246; background: #111933; color: var(--text); }
-  .hide { display: none; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text)}
+  a{color:inherit}
+  header{padding:24px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:10}
+  .brand{font-size:22px;font-weight:700;color:var(--accent)}
+  .subtitle{color:var(--muted);margin-top:4px}
+  main{max-width:1100px;margin:0 auto;padding:24px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:20px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
+  .card h3{margin:0 0 8px;font-size:18px}
+  .muted{color:var(--muted)}
+  .btn{display:inline-flex;align-items:center;gap:6px;font-size:14px;padding:8px 12px;border:1px solid #34405d;border-radius:10px;background:var(--btn);color:var(--text);text-decoration:none;cursor:pointer}
+  .btn:hover{background:var(--btnh)}
+  .crumbs{color:var(--muted);font-size:14px;margin-bottom:16px}
+  .list{display:flex;flex-direction:column;gap:10px}
+  .row{display:flex;justify-content:space-between;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .row-main{display:flex;flex-direction:column}
+  .name{font-weight:600}
+  .meta{font-size:12px;color:var(--muted);margin-top:2px}
+  footer{border-top:1px solid var(--line);margin-top:32px;padding:24px;color:var(--muted);font-size:12px;text-align:center}
+  .searchbar{display:flex;gap:10px;margin-bottom:16px}
+  .searchbar input{flex:1;padding:10px;border-radius:8px;border:1px solid #2a3246;background:#111933;color:var(--text)}
+  .hide{display:none}
 </style>
 </head>
 <body>
@@ -64,40 +58,43 @@
   <footer id="foot"></footer>
 
 <script>
+/* ===== Labels / config ===== */
 const LANG_LABELS = {
   eng: { name: "English", blurb: "Resources in English" },
   fra: { name: "French", blurb: "Ressources en français" },
   hin: { name: "Hindi", blurb: "हिंदी संसाधन" },
   por: { name: "Portuguese", blurb: "Recursos em Português" },
-  _datasets: { name: "Datasets", blurb: "General, non-language resources" }
+  _datasets: { name: "Datasets", blurb: "General (not language-keyed)" }
 };
+const LANGUAGE_KEYS = ["eng","fra","hin","por","_datasets"]; // includes datasets
 
-const LANGUAGE_KEYS = ["eng", "fra", "hin", "por", "_datasets"];
+// Nice labels for ACAI subfolders (first path segment)
+const DATASET_LABELS = {
+  people: "People",
+  places: "Places",
+  deities: "Deities",
+  flora: "Flora",
+  fauna: "Fauna",
+  objects: "Objects",
+  things: "Things",
+  groups: "Groups",
+  concepts: "Concepts",
+  events: "Events"
+};
+// Optional ordering; unknowns appended
+const DATASET_ORDER = ["people","places","deities","flora","fauna","objects","things","groups","concepts","events"];
+
+/* ===== Helpers ===== */
 const $ = (id) => document.getElementById(id);
-function humanBytes(n){ if(n==null)return"";const u=["B","KB","MB","GB"];let i=0,v=n;while(v>=1024&&i<u.length-1){v/=1024;i++;}return`${v.toFixed(v<10&&i>0?1:0)} ${u[i]}`; }
+function humanBytes(n){ if(n==null)return"";const u=["B","KB","MB","GB","TB"];let i=0,v=n;while(v>=1024&&i<u.length-1){v/=1024;i++;}return`${v.toFixed(v<10&&i>0?1:0)} ${u[i]}`; }
+async function loadManifest(){ const res=await fetch('./data/manifest.json',{cache:'no-store'}); if(!res.ok) throw new Error('manifest fetch failed'); return res.json(); }
+async function forceDownload(url, filename){ const res=await fetch(url); if(!res.ok) throw new Error(`HTTP ${res.status}`); const blob=await res.blob(); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click(); URL.revokeObjectURL(a.href); a.remove(); }
 
-async function loadManifest(){
-  const res = await fetch('./data/manifest.json', { cache: 'no-store' });
-  if (!res.ok) throw new Error("Failed to load manifest");
-  return res.json();
-}
-
-async function forceDownload(url, filename){
-  const res = await fetch(url);
-  const blob = await res.blob();
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  URL.revokeObjectURL(a.href);
-  a.remove();
-}
-
+/* ===== Landing (language cards) ===== */
 function renderLanding(manifest){
   const byLang = {};
-  for (const repo of manifest.repos){
-    for (const [lang, files] of Object.entries(repo.languages || {})){
+  for (const repo of manifest.repos) {
+    for (const [lang, files] of Object.entries(repo.languages || {})) {
       if (!LANGUAGE_KEYS.includes(lang)) continue;
       if (!byLang[lang]) byLang[lang] = [];
       byLang[lang].push(...files.map(f => ({...f, repo: repo.name})));
@@ -129,23 +126,70 @@ function renderLanding(manifest){
   });
 }
 
+/* ===== Files view (languages + special _datasets) ===== */
 function renderFiles(manifest, lang){
   $("landing").classList.add("hide");
   $("files").classList.remove("hide");
 
+  if (lang === "_datasets") {
+    const label = LANG_LABELS[lang]?.name || lang;
+    $("crumbs").innerHTML = `<a href="#" id="back">Home</a> / ${label}`;
+    $("back").onclick = (e)=>{ e.preventDefault(); renderLanding(manifest); };
+
+    // Gather all dataset files across repos
+    const files = [];
+    for (const repo of manifest.repos) {
+      const arr = (repo.languages && repo.languages._datasets) || [];
+      arr.forEach(f => files.push({...f, repo: repo.name}));
+    }
+
+    // Group by first path segment (category)
+    const groups = {};
+    for (const f of files) {
+      const k = (f.path || "").split("/")[0] || "_other";
+      (groups[k] ||= []).push(f);
+    }
+
+    // Ordered category list
+    const ordered = [...DATASET_ORDER.filter(k => groups[k] !== undefined),
+                     ...Object.keys(groups).filter(k => !DATASET_ORDER.includes(k))];
+
+    $("search").oninput = null; // search is inside category
+    const cards = ordered.map(k=>{
+      const nice = DATASET_LABELS[k] || k;
+      const count = groups[k].length;
+      return `
+        <div class="row">
+          <div class="row-main">
+            <div class="name">${nice}</div>
+            <div class="meta">${count} file${count===1?"":"s"} • folder: ${k}</div>
+          </div>
+          <div><button class="btn" data-open-ds="${k}">Browse ${nice}</button></div>
+        </div>`;
+    }).join("");
+
+    $("fileList").innerHTML = cards || `<div class="muted">No dataset categories found.</div>`;
+    document.querySelectorAll("[data-open-ds]").forEach(b => {
+      b.onclick = () => openDatasetCategory(manifest, b.dataset.openDs, groups[b.dataset.openDs]);
+    });
+    return;
+  }
+
+  // ----- Normal language buckets -----
   const label = LANG_LABELS[lang]?.name || lang;
   $("crumbs").innerHTML = `<a href="#" id="back">Home</a> / ${label}`;
-  $("back").onclick = (e) => { e.preventDefault(); renderLanding(manifest); };
+  $("back").onclick = (e)=>{ e.preventDefault(); renderLanding(manifest); };
 
   const files = [];
-  for (const repo of manifest.repos){
+  for (const repo of manifest.repos) {
     (repo.languages[lang] || []).forEach(f => files.push({...f, repo: repo.name}));
   }
 
   function update(){
     const q = $("search").value.toLowerCase();
-    const list = files.filter(f => f.path.toLowerCase().includes(q))
-      .map(f => {
+    const list = files
+      .filter(f => f.path.toLowerCase().includes(q))
+      .map(f=>{
         const name = f.path.split("/").pop();
         return `<div class="row">
           <div class="row-main">
@@ -154,20 +198,65 @@ function renderFiles(manifest, lang){
           </div>
           <div>
             <button class="btn" data-url="${f.downloadRaw}" data-fn="${name}">Download</button>
-            <a class="btn" href="${f.downloadRaw}" target="_blank">View</a>
+            <a class="btn" href="${f.downloadRaw}" target="_blank" rel="noopener">View</a>
           </div>
         </div>`;
       }).join("");
     $("fileList").innerHTML = list || `<div class="muted">No results.</div>`;
-    document.querySelectorAll("[data-url]").forEach(b =>
-      b.onclick = () => forceDownload(b.dataset.url, b.dataset.fn));
+    document.querySelectorAll("[data-url]").forEach(b => {
+      b.onclick = () => forceDownload(b.dataset.url, b.dataset.fn);
+    });
   }
 
   $("search").oninput = update;
   update();
 }
 
-loadManifest().then(renderLanding).catch(err => {
+/* ===== Datasets category drill-down ===== */
+function openDatasetCategory(manifest, categoryKey, files){
+  const dsLabel = LANG_LABELS._datasets?.name || "_datasets";
+  const nice = (DATASET_LABELS[categoryKey] || categoryKey);
+  $("crumbs").innerHTML = `
+    <a href="#" id="back">Home</a> /
+    <a href="#" id="backDs">${dsLabel}</a> /
+    ${nice}`;
+  $("back").onclick = (e)=>{ e.preventDefault(); renderLanding(manifest); };
+  $("backDs").onclick = (e)=>{ e.preventDefault(); renderFiles(manifest, "_datasets"); };
+
+  function update(){
+    const q = $("search").value.trim().toLowerCase();
+    const rows = files
+      .filter(f => f.path.toLowerCase().startsWith(categoryKey.toLowerCase()+"/"))
+      .filter(f => !q || f.path.toLowerCase().includes(q))
+      .map(f=>{
+        const name = f.path.split("/").pop();
+        const subpath = f.path.split("/").slice(1).join("/");
+        return `<div class="row">
+          <div class="row-main">
+            <div class="name">${name}</div>
+            <div class="meta">${subpath} • ${f.repo} • ${humanBytes(f.size)}</div>
+          </div>
+          <div>
+            <button class="btn" data-url="${f.downloadRaw}" data-fn="${name}">Download</button>
+            <a class="btn" href="${f.downloadRaw}" target="_blank" rel="noopener">View</a>
+          </div>
+        </div>`;
+      }).join("");
+    $("fileList").innerHTML = rows || `<div class="muted">No items in ${nice}.</div>`;
+    document.querySelectorAll("[data-url]").forEach(b => {
+      b.onclick = () => forceDownload(b.dataset.url, b.dataset.fn);
+    });
+  }
+
+  $("search").oninput = update;
+  update();
+
+  $("landing").classList.add("hide");
+  $("files").classList.remove("hide");
+}
+
+/* ===== Boot ===== */
+loadManifest().then(renderLanding).catch(err=>{
   document.body.innerHTML = `<div style="padding:40px;color:#f88">Failed to load manifest.<br>${err.message}</div>`;
 });
 </script>
