@@ -1,1 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Aquifer Downloads</title>
+<style>
+  :root { --bg:#0b1220; --card:#0f1730; --muted:#9aa3c7; --line:#1c2438; --text:#e6e8ee; --accent:#c7d2fe; --pill:#1b2743; --btn:#121a33; --btnh:#182247; --brand:#7aa6ff; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text)}
+  a{color:inherit}
+  .wrap{max-width:1100px;margin:0 auto;padding:24px}
+  header{position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--line);z-index:10}
+  .nav{display:flex;align-items:center;justify-content:space-between;padding:14px 24px}
+  .brand{display:flex;gap:10px;align-items:center;font-weight:700}
+  .logo{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--brand),#4b63d9)}
+  .hero{padding:28px 24px;border-bottom:1px solid var(--line)}
+  .hero h1{margin:0;font-size:28px;font-weight:800;letter-spacing:.1px}
+  .hero p{margin:10px 0 0;color:var(--muted);max-width:70ch}
+  .section{padding:24px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:10px; box-shadow: 0 0 0 1px rgba(255,255,255,0.02) inset}
+  .card h3{margin:0 0 4px;font-size:18px}
+  .muted{color:var(--muted)}
+  .pill{display:inline-flex;align-items:center;gap:6px;background:var(--pill);color:var(--accent);border-radius:999px;padding:4px 10px;font-size:12px}
+  .btn{display:inline-flex;align-items:center;gap:6px;font-size:14px;padding:8px 12px;border:1px solid #34405d;border-radius:10px;background:var(--btn);color:var(--text);text-decoration:none;cursor:pointer}
+  .btn:hover{background:var(--btnh)}
+  .crumbs{padding:10px 0 0;color:var(--muted);font-size:14px}
+  .crumbs a{text-decoration:none;color:#d2d7f9}
+  .list{display:flex;flex-direction:column;gap:10px;margin-top:16px}
+  .row{display:flex;gap:12px;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .row-main{display:flex;align-items:center;gap:10px;min-width:0}
+  .file-ico{width:28px;height:28px;border-radius:6px;background:#152044;display:grid;place-items:center;font-size:14px}
+  .name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:52vw}
+  .meta{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:12px}
+  .actions{display:flex;gap:8px;flex-wrap:wrap}
+  footer{padding:24px;color:var(--muted);font-size:12px;border-top:1px solid var(--line);margin-top:28px}
+  .searchbar{margin-top:12px;display:flex;gap:10px}
+  .search{flex:1 1 260px;padding:10px 12px;border:1px solid #2a3246;border-radius:10px;background:#111933;color:var(--text)}
+  .toggle{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:13px}
+  .hide{display:none}
+</style>
+</head>
+<body>
+<header>
+  <div class="nav wrap">
+    <div class="brand"><div class="logo"></div><div>Aquifer Downloads</div></div>
+    <div class="muted">Open resources for developers & translators</div>
+  </div>
+  <div class="hero wrap">
+    <h1 id="siteTitle">Unified Catalog</h1>
+    <p id="siteIntro">Browse and download structured Bible translation resources across multiple repositories—fast, branded, and without the GitHub UI.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- Languages (cards) -->
+  <section class="section" id="langSection">
+    <div class="grid" id="langGrid"></div>
+  </section>
+
+  <!-- Language view -->
+  <section class="section hide" id="filesSection">
+    <div class="crumbs" id="langCrumbs"></div>
+    <div class="searchbar">
+      <input id="search" class="search" type="search" placeholder="Filter files by name…" />
+      <label class="toggle"><input id="showDocs" type="checkbox" /> Show Markdown docs</label>
+    </div>
+    <div class="list" id="fileList"></div>
+  </section>
+</main>
+
+<footer class="wrap" id="foot"></footer>
+
+<script>
+/* ===== Config / Labels ===== */
+const LANG_LABELS = {
+  eng: { name: "English",  blurb: "Resources in English" },
+  fra: { name: "French",   blurb: "Ressources en français" },
+  hin: { name: "Hindi",    blurb: "हिंदी संसाधन" },
+  por: { name: "Portuguese", blurb: "Recursos em Português" },
+};
+const LANGUAGE_FOLDERS = ["eng","fra","hin","por"]; // <- uses 'fra' (French)
+
+/* ===== Utilities ===== */
+const $ = (id) => document.getElementById(id);
+function humanBytes(n){ if(n==null) return ""; const u=["B","KB","MB","GB","TB"]; let i=0,v=n; while(v>=1024&&i<u.length-1){v/=1024;i++;} return `${v.toFixed(v<10&&i>0?1:0)} ${u[i]}`; }
+
+/* ===== Manifest loader ===== */
+async function loadManifest(){
+  const res = await fetch('./data/manifest.json', { cache: 'no-store' });
+  if (!res.ok) throw new Error('manifest fetch failed');
+  return res.json();
+}
+
+/* ===== Force download ===== */
+async function forceDownload(url, filename){
+  try{
+    const res=await fetch(url,{credentials:"omit"});
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob=await res.blob();
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download=filename||"";
+    document.body.appendChild(a); a.click();
+    URL.revokeObjectURL(a.href); a.remove();
+  }catch(e){ alert(`Download failed: ${e.message}`); }
+}
+
+/* ===== UI: Landing (language cards) ===== */
+function renderLanding(manifest){
+  const byLang = {}; // { lang: [file objects across repos] }
+  for (const r of manifest.repos) {
+    for (const [lang, files] of Object.entries(r.languages)) {
+      if (!LANGUAGE_FOLDERS.includes(lang)) continue;
+      if (!byLang[lang]) byLang[lang] = [];
+      files.forEach(f => byLang[lang].push({ ...f, repo: r.name }));
+    }
+  }
+
+  const gridHTML = LANGUAGE_FOLDERS.map(slug=>{
+    const label = LANG_LABELS[slug]?.name || slug;
+    const blurb = LANG_LABELS[slug]?.blurb || "Downloads";
+    const count = (byLang[slug]||[]).length;
+    return `
+      <div class="card">
+        <div class="pill">Language</div>
+        <h3>${label}</h3>
+        <div class="muted">${blurb}</div>
+        <div class="muted" style="margin-top:4px">${count} file${count===1?"":"s"}</div>
+        <div class="actions" style="margin-top:8px">
+          <button class="btn" data-open="${slug}">Browse downloads</button>
+        </div>
+      </div>`;
+  }).join("");
+
+  $("langGrid").innerHTML = gridHTML;
+
+  $("langGrid").querySelectorAll("[data-open]").forEach(btn=>{
+    btn.addEventListener("click", ()=> openLanguage(manifest, btn.getAttribute("data-open")));
+  });
+
+  $("langSection").classList.remove("hide");
+  $("filesSection").classList.add("hide");
+  $("foot").textContent = `Catalog generated: ${manifest.generatedAt}`;
+}
+
+/* ===== UI: Language view ===== */
+function openLanguage(manifest, slug){
+  const label = LANG_LABELS[slug]?.name || slug;
+  $("langCrumbs").innerHTML = `<a href="#" id="backHome">Home</a> / ${label}`;
+  $("backHome").addEventListener("click", (e)=>{ e.preventDefault(); renderLanding(manifest); });
+
+  const files = [];
+  for (const r of manifest.repos) {
+    const arr = r.languages[slug] || [];
+    arr.forEach(f => files.push({ ...f, repo: r.name }));
+  }
+
+  function allowedFile(name){
+    const lower = name.toLowerCase();
+    const showMd = document.getElementById("showDocs").checked;
+    if (lower.endsWith(".md") && !showMd) return false;
+    return true; // show everything else by default
+  }
+
+  function refreshList(){
+    const q = $("search").value.trim().toLowerCase();
+    const rows = files
+      .filter(f => allowedFile(f.path.split("/").pop()))
+      .filter(f => !q || f.path.toLowerCase().includes(q) || f.repo.toLowerCase().includes(q))
+      .map(f=>{
+        const name = f.path.split("/").pop();
+        const dir  = f.path.split("/").slice(0,-1).join("/");
+        const size = f.size != null ? humanBytes(f.size) : "";
+        return `<div class="row">
+          <div class="row-main">
+            <div class="file-ico">📄</div>
+            <div>
+              <div class="name">${name}</div>
+              <div class="meta"><span class="pill">${f.repo}</span><span>${dir}</span><span>${size}</span></div>
+            </div>
+          </div>
+          <div class="actions">
+            <button class="btn" data-dl data-url="${f.downloadRaw}" data-fn="${name}">Download</button>
+            <a class="btn" href="${f.downloadRaw}" target="_blank" rel="noopener">View</a>
+          </div>
+        </div>`;
+      }).join("");
+
+    $("fileList").innerHTML = rows || `<div class="muted">No items.</div>`;
+
+    $("fileList").querySelectorAll("[data-dl]").forEach(btn=>{
+      btn.addEventListener("click", ()=> forceDownload(btn.getAttribute("data-url"), btn.getAttribute("data-fn")));
+    });
+  }
+
+  $("search").oninput = refreshList;
+  $("showDocs").onchange = refreshList;
+
+  $("langSection").classList.add("hide");
+  $("filesSection").classList.remove("hide");
+  refreshList();
+}
+
+/* ===== Boot ===== */
+loadManifest().then(renderLanding).catch(err=>{
+  document.body.innerHTML = '<div class="wrap" style="padding:40px;color:#f88">Failed to load manifest. Have you run the build Action?</div>';
+});
+</script>
+</body>
+</html>
 
