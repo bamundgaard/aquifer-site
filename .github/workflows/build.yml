@@ -116,3 +116,5 @@
             fs.mkdirSync('docs/data', { recursive: true });
             fs.writeFileSync('docs/data/manifest.json', JSON.stringify(manifest, null, 2));
             console.log('✅ wrote docs/data/manifest.json');
+          })().catch(err=>{ console.error(err); process.exit(1); });
+          NODE
