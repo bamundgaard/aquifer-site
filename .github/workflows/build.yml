@@ -1,15 +1,36 @@
+name: Build unified catalog manifest
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 * * * *'  # hourly; adjust as needed
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout site
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Generate manifest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: main
-          # Each repo can be a string or object:
-          #   "owner/repo" → normal language folders (eng, fra, etc.)
-          #   { "name": "owner/repo", "include": ["folder1","folder2"], "asLang": "_datasets" } → non-language repos
+          # Repos to index:
+          # - normal repo as a string uses language folders (eng, fra, hin, por)
+          # - object form lets you include arbitrary folders and publish them under a synthetic bucket
           REPOS_JSON: >-
-            [
-              "bamundgaard/test-2025-10-13-BiblicaStudyNotesKeyTerms",
-              { "name": "BibleAquifer/ACAI", "include": ["people","places","deities"], "asLang": "_datasets" }
-            ]
+            ["bamundgaard/test-2025-10-13-BiblicaStudyNotesKeyTerms",
+             {"name":"BibleAquifer/ACAI","include":["people","places","deities"],"asLang":"_datasets"}]
+          # Language buckets (uses 'fra' for French)
           LANGUAGE_FOLDERS_JSON: '["eng","fra","hin","por"]'
         run: |
           node - <<'NODE'
@@ -20,6 +41,8 @@
           const BRANCH = process.env.BRANCH || 'main';
           const RAW = JSON.parse(process.env.REPOS_JSON);
           const LANGUAGE_FOLDERS = JSON.parse(process.env.LANGUAGE_FOLDERS_JSON);
+
+          // Normalize: string => {name: "..."}
           const REPOS = RAW.map(r => (typeof r === 'string' ? { name: r } : r));
 
           const IGNORE = [
@@ -90,7 +113,7 @@
             for (const cfg of REPOS){
               const [owner, repo] = cfg.name.split('/');
 
-              // handle repos with explicit include paths
+              // Case 1: explicit include paths → publish under synthetic bucket (e.g., "_datasets")
               if (cfg.include && cfg.include.length){
                 const asLang = cfg.asLang || "_datasets";
                 const languages = { [asLang]: [] };
@@ -102,7 +125,7 @@
                 continue;
               }
 
-              // handle normal language folder repos
+              // Case 2: standard language folders at repo root
               const root = await listDir(owner, repo, '');
               const languages = {};
               for (const item of root){
@@ -118,3 +141,9 @@
             console.log('✅ wrote docs/data/manifest.json');
           })().catch(err=>{ console.error(err); process.exit(1); });
           NODE
+
+      - name: Auto-commit manifest
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Update unified catalog manifest [skip ci]"
+          file_pattern: docs/data/manifest.json
