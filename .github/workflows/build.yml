@@ -117,10 +117,15 @@ jobs:
           })().catch(err=>{ console.error(err); process.exit(1); });
           NODE
 
-      - name: Commit & push manifest
+            - name: Configure git auth
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+
+      - name: Commit & push manifest
+        run: |
           git add docs/data/manifest.json
           git commit -m "Update unified catalog manifest [skip ci]" || echo "No changes"
           git push
+
