@@ -24,13 +24,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: main
-          # Repos to index:
-          # - string form → uses language folders (eng, fra, hin, por)
-          # - object form → crawl specific folders and publish under a synthetic bucket (e.g., "_datasets")
           REPOS_JSON: >-
             ["bamundgaard/test-2025-10-13-BiblicaStudyNotesKeyTerms",
-             {"name":"BibleAquifer/ACAI","include":["people","places","deities","flora","fauna","objects","things","groups","concepts","events"],"asLang":"_datasets"}]
-          # Language buckets (uses 'fra' for French)
+             {"name":"BibleAquifer/ACAI","autodiscover":true,"asLang":"_datasets"}]
           LANGUAGE_FOLDERS_JSON: '["eng","fra","hin","por"]'
         run: |
           node - <<'NODE'
@@ -111,19 +107,21 @@ jobs:
             for (const cfg of REPOS){
               const [owner, repo] = cfg.name.split('/');
 
-              // Case 1: explicit include paths → publish under synthetic bucket (e.g., "_datasets")
-              if (cfg.include && cfg.include.length){
-                const asLang = cfg.asLang || "_datasets";
-                const languages = { [asLang]: [] };
-                for (const p of cfg.include){
-                  const files = await walk(owner, repo, p);
-                  languages[asLang].push(...files);
+              // AUTODISCOVER: pull all top-level folders as dataset categories
+              if (cfg.autodiscover){
+                const root = await listDir(owner, repo, '');
+                const topDirs = root.filter(x => x.type === 'dir' && !isIgnored(x.name)).map(x => x.name);
+                const languages = { [cfg.asLang || '_datasets']: [] };
+                for (const dir of topDirs){
+                  const files = await walk(owner, repo, dir);
+                  // prefix remains "<dir>/..." which our UI uses as category key
+                  languages[cfg.asLang || '_datasets'].push(...files);
                 }
                 manifest.repos.push({ name: cfg.name, branch: BRANCH, languages });
                 continue;
               }
 
-              // Case 2: standard language folders at repo root
+              // Standard: language folders at repo root
               const root = await listDir(owner, repo, '');
               const languages = {};
               for (const item of root){
