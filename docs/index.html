@@ -119,6 +119,7 @@ function showPreview(){ $('previewBackdrop').style.display='flex'; }
 function hidePreview(){ $('previewBackdrop').style.display='none'; }
 $('previewClose').onclick=()=>{ history.replaceState(null,'',location.pathname+location.search); hidePreview(); };
 $('previewBackdrop').addEventListener('click',e=>{ if(e.target.id==='previewBackdrop'){ $('previewClose').click(); } });
+// fixed newline handling in CSV/TSV preview
 async function previewFile(url,filename){
   const body=$('previewBody'); const open=$('previewOpenRaw'); const title=$('previewTitle');
   title.textContent=filename; open.href=url; body.innerHTML='<div class="muted">Loading…</div>'; showPreview();
@@ -133,13 +134,9 @@ async function previewFile(url,filename){
     if(/\.(md|markdown)$/.test(lower)){ body.innerHTML = marked.parse(text); return; }
     if(/\.(json|geojson)$/.test(lower)){ let pretty=text; try{ pretty=JSON.stringify(JSON.parse(text),null,2);}catch{} body.innerHTML=`<pre>${escapeHtml(pretty)}</pre>`; return; }
     if(/\.(csv|tsv|txt)$/.test(lower)){
-      const lines = text.split(/
-?
-/);
-      const head = lines.slice(0,400).join('
-');
-      body.innerHTML = `<pre>${escapeHtml(head)}${lines.length>400?'
-…(truncated)':''}</pre>`;
+      const lines = text.split(/\r?\n/);
+      const head = lines.slice(0,400).join('\n');
+      body.innerHTML = `<pre>${escapeHtml(head)}${lines.length>400?'\n…(truncated)':''}</pre>`;
       return;
     }
     body.innerHTML=`<pre>${escapeHtml(text)}</pre>`;
