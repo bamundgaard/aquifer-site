@@ -16,28 +16,39 @@
   header{padding:24px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:10}
   .brand{font-size:22px;font-weight:700;color:var(--accent)}
   .subtitle{color:var(--muted);margin-top:4px}
-  main{max-width:1100px;margin:0 auto;padding:24px}
+  main{max-width:1200px;margin:0 auto;padding:16px 24px 24px}
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:20px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
   .card h3{margin:0 0 8px;font-size:18px}
   .muted{color:var(--muted)}
   .btn{display:inline-flex;align-items:center;gap:6px;font-size:14px;padding:8px 12px;border:1px solid #34405d;border-radius:10px;background:var(--btn);color:var(--text);text-decoration:none;cursor:pointer}
   .btn:hover{background:var(--btnh)}
-  .crumbs{color:var(--muted);font-size:14px;margin-bottom:16px}
-  .list{display:flex;flex-direction:column;gap:10px}
-  .row{display:flex;justify-content:space-between;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
-  .row-main{display:flex;flex-direction:column}
-  .name{font-weight:600}
-  .meta{font-size:12px;color:var(--muted);margin-top:2px}
-  footer{border-top:1px solid var(--line);margin-top:32px;padding:24px;color:var(--muted);font-size:12px;text-align:center}
-  .searchbar{display:flex;gap:10px;margin-bottom:16px}
-  .searchbar input{flex:1;padding:10px;border-radius:8px;border:1px solid #2a3246;background:#111933;color:var(--text)}
+  .crumbs{color:var(--muted);font-size:14px;margin-bottom:12px}
   .hide{display:none}
+  footer{border-top:1px solid var(--line);margin-top:24px;padding:24px;color:var(--muted);font-size:12px;text-align:center}
+
+  /* Files view */
+  .files-wrap{display:grid;grid-template-columns:280px 1fr;gap:16px;min-height:65vh}
+  .sidebar{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:12px;position:sticky;top:92px;height:fit-content}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{cursor:pointer;border:1px solid #2a3246;background:#111933;color:var(--muted);padding:6px 10px;border-radius:999px;font-size:12px}
+  .chip.active{color:var(--text);border-color:#3a4770}
+  .searchbar{display:flex;gap:8px;margin-top:12px}
+  .searchbar input{flex:1;padding:10px;border-radius:8px;border:1px solid #2a3246;background:#111933;color:var(--text)}
+
+  .list{display:flex;flex-direction:column;gap:8px}
+  .row{display:flex;justify-content:space-between;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .row-main{display:flex;flex-direction:column;gap:2px}
+  .name{font-weight:600}
+  .meta{font-size:12px;color:var(--muted)}
+  .toolbar{display:flex;gap:8px}
+
+  /* Modal */
   .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:1000}
-  .modal{width:min(900px,90vw);max-height:85vh;background:#0f1730;border:1px solid #1c2438;border-radius:12px;overflow:auto}
-  .modal header{position:sticky;top:0;background:#0f1730;border-bottom:1px solid #1c2438;padding:12px 16px;display:flex;justify-content:space-between;align-items:center}
-  .modal header .title{font-weight:600}
-  .modal header .actions a{margin-left:8px}
+  .modal{width:min(1000px,92vw);max-height:90vh;background:#0f1730;border:1px solid #1c2438;border-radius:12px;overflow:auto}
+  .modal header{position:sticky;top:0;background:#0f1730;border-bottom:1px solid #1c2438;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .modal header .title{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .modal header .actions a, .modal header .actions button{margin-left:8px}
   .modal .body{padding:16px}
   .modal pre{white-space:pre-wrap;word-break:break-word;background:#0b1220;border:1px solid #1c2438;border-radius:8px;padding:12px;overflow:auto}
   .modal img{max-width:100%;height:auto;border-radius:8px;border:1px solid #1c2438}
@@ -56,10 +67,15 @@
 
     <section id="files" class="hide">
       <div class="crumbs" id="crumbs"></div>
-      <div class="searchbar">
-        <input id="search" type="search" placeholder="Filter files…" />
+      <div class="files-wrap">
+        <aside class="sidebar">
+          <div class="chips" id="chips"></div>
+          <div class="searchbar"><input id="search" type="search" placeholder="Filter files… (⌘/Ctrl+K)" /></div>
+        </aside>
+        <div>
+          <div class="list" id="fileList"></div>
+        </div>
       </div>
-      <div class="list" id="fileList"></div>
     </section>
   </main>
 
@@ -72,6 +88,7 @@
         <div id="previewTitle" class="title">Preview</div>
         <div class="actions">
           <a id="previewOpenRaw" class="btn" target="_blank" rel="noopener">Open raw</a>
+          <button id="previewCopyLink" class="btn">Copy link</button>
           <button id="previewClose" class="btn">Close</button>
         </div>
       </header>
@@ -81,94 +98,132 @@
 
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script>
-const LANG_LABELS = {
-  eng:{name:"English",blurb:"Resources in English"},
-  fra:{name:"French",blurb:"Ressources en français"},
-  hin:{name:"Hindi",blurb:"हिंदी संसाधन"},
-  por:{name:"Portuguese",blurb:"Recursos em Português"},
-  _datasets:{name:"Datasets",blurb:"General (not language-keyed)"}
-};
-const DATASET_LABELS={people:"People",places:"Places",deities:"Deities",flora:"Flora",fauna:"Fauna",objects:"Objects",things:"Things",groups:"Groups",concepts:"Concepts",events:"Events"};
-const DATASET_ORDER=["people","places","deities","flora","fauna","objects","things","groups","concepts","events"];
-const LANGUAGE_KEYS=["eng","fra","hin","por","_datasets"];
+// ---- constants / helpers ----
+const LANG_LABELS={eng:{name:"English",blurb:"Resources in English"},fra:{name:"French",blurb:"Ressources en français"},hin:{name:"Hindi",blurb:"हिंदी संसाधन"},por:{name:"Portuguese",blurb:"Recursos em Português"},_datasets:{name:"Datasets",blurb:"General (not language-keyed)"}};
 const $=id=>document.getElementById(id);
-function humanBytes(n){if(n==null)return"";const u=["B","KB","MB","GB"],i=Math.floor(Math.log(n)/Math.log(1024));return`${(n/Math.pow(1024,i)).toFixed(1)} ${u[i]}`;}
-async function loadManifest(){const r=await fetch('./data/manifest.json',{cache:'no-store'});if(!r.ok)throw new Error("manifest missing");return r.json();}
-async function forceDownload(u,f){const r=await fetch(u);const b=await r.blob();const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=f;document.body.appendChild(a);a.click();URL.revokeObjectURL(a.href);a.remove();}
-function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+const humanBytes=n=>{if(n==null)return"";const u=["B","KB","MB","GB"],i=Math.floor(Math.log(n)/Math.log(1024));return`${(n/Math.pow(1024,i)).toFixed(1)} ${u[i]}`};
+const ext=p=>(p.split('.').pop()||'').toLowerCase();
+const hashFor=p=>'#file='+encodeURIComponent(p);
+const getHash=()=>{const m=location.hash.match(/#file=([^&]+)/);return m?decodeURIComponent(m[1]):null;}
 
-/* === PREVIEW === */
-function showPreviewModal(){ $('previewBackdrop').style.display='flex'; }
-function hidePreviewModal(){ $('previewBackdrop').style.display='none'; }
-$('previewClose').onclick=hidePreviewModal;
-$('previewBackdrop').addEventListener('click',e=>{if(e.target.id==='previewBackdrop')hidePreviewModal();});
+function chooseUrl(f){return f.downloadCdn||f.downloadCDN||f.downloadRaw||f.url;}
+function safeLangs(repo){return Object(repo && repo.languages)===repo.languages?repo.languages:{};}
+function deriveCategory(f, lang){
+  // For datasets: people/places/... are first segment
+  // For ACAI (or any repo), use first segment of path; else fallback to first segment
+  const p=(f.path||'');
+  const seg=p.split('/')[0]||'misc';
+  return seg.toLowerCase();
+}
+
+// ---- preview modal ----
+function showPreview(){ $('previewBackdrop').style.display='flex'; }
+function hidePreview(){ $('previewBackdrop').style.display='none'; }
+$('previewClose').onclick=hidePreview;
+$('previewBackdrop').addEventListener('click',e=>{if(e.target.id==='previewBackdrop')hidePreview();});
 async function previewFile(url,filename){
   const body=$('previewBody');const open=$('previewOpenRaw');const title=$('previewTitle');
-  title.textContent=filename;open.href=url;body.innerHTML='<div class="muted">Loading…</div>';showPreviewModal();
+  title.textContent=filename;open.href=url;body.innerHTML='<div class="muted">Loading…</div>';showPreview();
   const lower=(filename||'').toLowerCase();
   try{
     if(/\.(png|jpe?g|gif|webp|svg)$/.test(lower)){body.innerHTML=`<img src="${url}" alt="${filename}">`;return;}
+    if(/\.(mp4|webm|mov|m4v)$/.test(lower)){body.innerHTML=`<video controls style="width:100%"><source src="${url}"></video>`;return;}
+    if(/\.(mp3|wav|ogg|m4a|flac)$/.test(lower)){body.innerHTML=`<audio controls src="${url}"></audio>`;return;}
+    if(/\.pdf$/.test(lower)){body.innerHTML=`<object data="${url}#view=FitH" type="application/pdf" style="width:100%;height:70vh"><div class="muted">PDF preview unavailable. Use “Open raw”.</div></object>`;return;}
+    if(/\.(html?|xhtml)$/.test(lower)){body.innerHTML=`<iframe src="${url}" sandbox="allow-same-origin allow-forms allow-scripts" style="width:100%;height:70vh;border:0"></iframe>`;return;}
     const res=await fetch(url);if(!res.ok)throw new Error(`HTTP ${res.status}`);const text=await res.text();
     if(/\.(md|markdown)$/.test(lower)){body.innerHTML=marked.parse(text);return;}
     if(/\.(json|geojson)$/.test(lower)){let pretty=text;try{pretty=JSON.stringify(JSON.parse(text),null,2);}catch{}body.innerHTML=`<pre>${escapeHtml(pretty)}</pre>`;return;}
-    if(/\.(csv|tsv)$/.test(lower)){const lines=text.split(/\r?\n/).slice(0,200).join('\n');body.innerHTML=`<pre>${escapeHtml(lines)}${text.split(/\r?\n/).length>200?'\n…(truncated)':''}</pre>`;return;}
+    if(/\.(csv|tsv)$/.test(lower)){const lines=text.split(/\r?\n/);const head=lines.slice(0,200).join('\n');body.innerHTML=`<pre>${escapeHtml(head)}${lines.length>200?'\n…(truncated)':''}</pre>`;return;}
     const preview=text.length>200000?text.slice(0,200000)+'\n…(truncated)':text;body.innerHTML=`<pre>${escapeHtml(preview)}</pre>`;
   }catch(e){body.innerHTML=`<div class="muted">Preview failed: ${e.message}</div>`;}
 }
+function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));}
 
-/* === MAIN === */
+// ---- app state ----
+let MANIFEST=null; let ALL_FILES=[]; // flattened list across repos/langs
+
+function flattenAllFiles(m){
+  const out=[];
+  for(const repo of (m.repos||[])){
+    const langs=safeLangs(repo);
+    for(const [lang,files] of Object.entries(langs||{})){
+      (files||[]).forEach(f=>{
+        const url=chooseUrl(f); if(!url) return;
+        out.push({ lang, repo:repo.name, path:f.path, size:f.size, title:f.title, url, category:deriveCategory(f, lang) });
+      });
+    }
+  }
+  return out;
+}
+
+// ---- landing ----
 function renderLanding(manifest){
+  MANIFEST=manifest; ALL_FILES=flattenAllFiles(MANIFEST);
   const byLang={};
-  for(const repo of manifest.repos){for(const [lang,files] of Object.entries(repo.languages||{})){
-    if(!LANGUAGE_KEYS.includes(lang))continue;if(!byLang[lang])byLang[lang]=[];byLang[lang].push(...files.map(f=>({...f,repo:repo.name})));
-  }}
+  for(const f of ALL_FILES){ (byLang[f.lang]??=[]).push(f); }
   const grid=Object.keys(byLang).map(lang=>{
     const label=LANG_LABELS[lang]?.name||lang;const blurb=LANG_LABELS[lang]?.blurb||"";const count=byLang[lang].length;
     return`<div class="card"><h3>${label}</h3><div class="muted">${blurb}</div><div class="muted" style="margin-top:4px">${count} file${count===1?"":"s"}</div><div style="margin-top:8px"><button class="btn" data-open="${lang}">Browse</button></div></div>`;
-  }).join("");
+  }).join('');
   $('langGrid').innerHTML=grid||`<div class="muted">No files found.</div>`;
   $('landing').classList.remove('hide');$('files').classList.add('hide');
-  $('foot').textContent=`Catalog generated ${manifest.generatedAt}`;
-  document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>renderFiles(manifest,b.dataset.open));
+  $('foot').textContent=`Catalog generated ${manifest.generatedAt || ''}`;
+  document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>renderFiles(byLang[b.dataset.open], b.dataset.open));
+
+  // Deep link support: if #file is present on landing, open the containing lang and preview
+  const wanted=getHash();
+  if(wanted){ const f=ALL_FILES.find(x=>x.path===wanted); if(f){ renderFiles(byLang[f.lang], f.lang, wanted); }}
 }
 
-function renderFiles(manifest,lang){
+// ---- files view with chips + search ----
+function renderFiles(filesForLang, lang, preselectPath){
   $('landing').classList.add('hide');$('files').classList.remove('hide');
-  if(lang==='_datasets'){const label=LANG_LABELS[lang]?.name||lang;$('crumbs').innerHTML=`<a href="#" id="back">Home</a> / ${label}`;$('back').onclick=e=>{e.preventDefault();renderLanding(manifest);};
-    const files=[];for(const repo of manifest.repos){(repo.languages?._datasets||[]).forEach(f=>files.push({...f,repo:repo.name}));}
-    const groups={};for(const f of files){const k=(f.path||'').split('/')[0]||'_other';(groups[k]??=[]).push(f);}
-    const ordered=[...DATASET_ORDER.filter(k=>groups[k]),...Object.keys(groups).filter(k=>!DATASET_ORDER.includes(k))];
-    $('search').oninput=null;
-    const cards=ordered.map(k=>{const nice=DATASET_LABELS[k]||k;const c=groups[k].length;return`<div class="row"><div class="row-main"><div class="name">${nice}</div><div class="meta">${c} file${c===1?"":"s"} • ${k}</div></div><div><button class="btn" data-open-ds="${k}">Browse</button></div></div>`;}).join('');
-    $('fileList').innerHTML=cards||`<div class="muted">No dataset categories found.</div>`;
-    document.querySelectorAll('[data-open-ds]').forEach(b=>b.onclick=()=>openDatasetCategory(manifest,b.dataset.openDs,groups[b.dataset.openDs]));
-    return;
-  }
-  const label=LANG_LABELS[lang]?.name||lang;$('crumbs').innerHTML=`<a href="#" id="back">Home</a> / ${label}`;$('back').onclick=e=>{e.preventDefault();renderLanding(manifest);};
-  const files=[];for(const repo of manifest.repos){(repo.languages[lang]||[]).forEach(f=>files.push({...f,repo:repo.name}));}
-  function update(){
-    const q=$('search').value.toLowerCase();
-    const list=files.filter(f=>f.path.toLowerCase().includes(q)).map(f=>{const n=f.path.split('/').pop();return`<div class="row"><div class="row-main"><div class="name">${n}</div><div class="meta">${f.repo} • ${humanBytes(f.size)}</div></div><div><button class="btn" onclick="previewFile('${f.downloadRaw}','${n}')">Preview</button><button class="btn" data-url="${f.downloadRaw}" data-fn="${n}">Download</button><a class="btn" href="${f.downloadRaw}" target="_blank">View</a></div></div>`;}).join('');
-    $('fileList').innerHTML=list||`<div class="muted">No results.</div>`;document.querySelectorAll('[data-url]').forEach(b=>b.onclick=()=>forceDownload(b.dataset.url,b.dataset.fn));
-  }$('search').oninput=update;update();
-}
+  $('crumbs').innerHTML=`<a href="#" id="back">Home</a> / ${LANG_LABELS[lang]?.name||lang}`;
+  $('back').onclick=e=>{e.preventDefault();renderLanding(MANIFEST);};
 
-function openDatasetCategory(manifest,key,files){
-  const dsLabel=LANG_LABELS._datasets.name;const nice=DATASET_LABELS[key]||key;
-  $('crumbs').innerHTML=`<a href="#" id="back">Home</a> / <a href="#" id="backDs">${dsLabel}</a> / ${nice}`;
-  $('back').onclick=e=>{e.preventDefault();renderLanding(manifest);};
-  $('backDs').onclick=e=>{e.preventDefault();renderFiles(manifest,'_datasets');};
-  function update(){
-    const q=$('search').value.trim().toLowerCase();
-    const rows=files.filter(f=>f.path.toLowerCase().startsWith(key+'/')).filter(f=>!q||f.path.toLowerCase().includes(q)).map(f=>{
-      const n=f.path.split('/').pop();const sub=f.path.split('/').slice(1).join('/');
-      return`<div class="row"><div class="row-main"><div class="name">${n}</div><div class="meta">${sub} • ${f.repo} • ${humanBytes(f.size)}</div></div><div><button class="btn" onclick="previewFile('${f.downloadRaw}','${n}')">Preview</button><button class="btn" data-url="${f.downloadRaw}" data-fn="${n}">Download</button><a class="btn" href="${f.downloadRaw}" target="_blank">View</a></div></div>`;
+  let activeChip='All';
+  let q='';
+
+  const categories=Array.from(new Set((filesForLang||[]).map(f=>f.category||'misc'))).sort();
+  const chipsEl=$('chips'); chipsEl.innerHTML='';
+  const addChip=(name)=>{
+    const c=document.createElement('button'); c.className='chip'+(name===activeChip?' active':''); c.textContent=name; c.onclick=()=>{activeChip=name; renderList();}; chipsEl.appendChild(c);
+  };
+  addChip('All'); categories.forEach(addChip);
+
+  const input=$('search'); input.value=''; input.oninput=()=>{q=input.value.trim().toLowerCase(); renderList();};
+  window.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();input.focus();input.select();}});
+
+  function renderList(){
+    const items=(filesForLang||[]).filter(f=>{
+      const chipOk = (activeChip==='All') || ((f.category||'').toLowerCase()===activeChip.toLowerCase());
+      const qOk = !q || (f.path||'').toLowerCase().includes(q) || (f.title||'').toLowerCase().includes(q) || (f.repo||'').toLowerCase().includes(q);
+      return chipOk && qOk;
+    }).map(f=>{
+      const n=(f.path||f.url).split('/').pop();
+      return `<div class="row" data-path="${encodeURIComponent(f.path)}"><div class="row-main"><div class="name">${n}</div><div class="meta">${f.category||'misc'} • ${f.repo||''} • ${humanBytes(f.size)}</div></div><div class="toolbar"><button class="btn" data-preview>Preview</button><a class="btn" href="${f.url}" target="_blank">Open raw</a><button class="btn" data-copy>Copy link</button></div></div>`;
     }).join('');
-    $('fileList').innerHTML=rows||`<div class="muted">No items in ${nice}.</div>`;
-    document.querySelectorAll('[data-url]').forEach(b=>b.onclick=()=>forceDownload(b.dataset.url,b.dataset.fn));
-  }$('search').oninput=update;update();
+    $('fileList').innerHTML = items || `<div class="muted">No results.</div>`;
+
+    document.querySelectorAll('.row').forEach(row=>{
+      const p=decodeURIComponent(row.getAttribute('data-path'));
+      const f=(filesForLang||[]).find(x=>x.path===p);
+      const copyBtn=row.querySelector('[data-copy]');
+      copyBtn.onclick=async()=>{ history.replaceState(null,'',hashFor(p)); await navigator.clipboard.writeText(location.href); copyBtn.textContent='Copied'; setTimeout(()=>copyBtn.textContent='Copy link',1200); };
+      const prevBtn=row.querySelector('[data-preview]');
+      prevBtn.onclick=()=>{ history.replaceState(null,'',hashFor(p)); previewFile(f.url, (f.path||f.url).split('/').pop()); };
+    });
+
+    // Preselect if requested
+    if(preselectPath){ const sel = Array.from(document.querySelectorAll('.row')).find(r=>decodeURIComponent(r.getAttribute('data-path'))===preselectPath); if(sel){ sel.scrollIntoView({block:'center'}); sel.querySelector('[data-preview]').click(); preselectPath=null; } }
+  }
+
+  renderList();
 }
 
+// ---- boot ----
+async function loadManifest(){ const r=await fetch('./data/manifest.json',{cache:'no-store'}); if(!r.ok) throw new Error('manifest missing'); return r.json(); }
 loadManifest().then(renderLanding).catch(e=>{document.body.innerHTML=`<div style="padding:40px;color:#f88">Error loading manifest: ${e.message}</div>`;});
 </script>
 </body>
