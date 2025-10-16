@@ -34,7 +34,11 @@ jobs:
           INCLUDE_ARCHIVED: "false"             # set "true" to include archived repos
           PER_PAGE: "100"
           MAX_PAGES: "10"
-       
+          # Optional: append extra repos or special rules
+          EXTRA_REPOS_JSON: >-
+            [
+              {"name":"BibleAquifer/ACAI","autodiscover":true,"asLang":"_datasets"}
+            ]
           LANGUAGE_FOLDERS_JSON: '["eng","fra","hin","por"]'
         run: |
           node - <<'NODE'
