@@ -85,123 +85,166 @@
   </div>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script>
+// ===== Utilities =====
 const $=id=>document.getElementById(id);
-const ext=p=>(p.split('.').pop()||'').toLowerCase();
+const ext=p=>(p?.split('.').pop()||'').toLowerCase();
 const hashFor=p=>'#file='+encodeURIComponent(p);
-function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));}
-function chooseUrl(f){return f.downloadCdn||f.downloadCDN||f.downloadRaw||f.url;}
-function deriveCategory(f){const p=(f.path||'');return p.split('/')[0]||'misc';}
-async function loadManifest(){const r=await fetch('./data/manifest.json',{cache:'no-store'});if(!r.ok)throw new Error('manifest missing');return r.json();}
+const getHash=()=>{const m=location.hash.match(/#file=([^&]+)/);return m?decodeURIComponent(m[1]):null;};
+const escapeHtml=s=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+const chooseUrl=f=>f.downloadCdn||f.downloadCDN||f.downloadRaw||f.url; // keep existing schema
+const deriveCategory=f=> (f.path||'').split('/')[0]||'misc'; // first path segment
+
+async function loadManifest(){
+  const r=await fetch('./data/manifest.json',{cache:'no-store'});
+  if(!r.ok) throw new Error('manifest missing');
+  return r.json();
+}
+
+// ===== Preview Modal =====
 function showPreview(){ $('previewBackdrop').style.display='flex'; }
 function hidePreview(){ $('previewBackdrop').style.display='none'; }
-$('previewClose').onclick=hidePreview;
-$('previewBackdrop').addEventListener('click',e=>{if(e.target.id==='previewBackdrop')hidePreview();});
-async function previewFile(url,filename){const body=$('previewBody');const open=$('previewOpenRaw');const title=$('previewTitle');title.textContent=filename;open.href=url;body.innerHTML='<div class="muted">Loading…</div>';showPreview();const lower=(filename||'').toLowerCase();try{if(/\.(png|jpe?g|gif|webp|svg)$/.test(lower)){body.innerHTML=`<img src="${url}" alt="${filename}">`;return;}if(/\.(mp4|webm|mov|m4v)$/.test(lower)){body.innerHTML=`<video controls style="width:100%"><source src="${url}"></video>`;return;}if(/\.(mp3|wav|ogg|m4a|flac)$/.test(lower)){body.innerHTML=`<audio controls src="${url}"></audio>`;return;}if(/\.pdf$/.test(lower)){body.innerHTML=`<object data="${url}#view=FitH" type="application/pdf" style="width:100%;height:70vh"><div class="muted">PDF preview unavailable. Use “Open raw”.</div></object>`;return;}if(/\.(html?|xhtml)$/.test(lower)){body.innerHTML=`<iframe src="${url}" sandbox="allow-same-origin allow-forms allow-scripts" style="width:100%;height:70vh;border:0"></iframe>`;return;}const res=await fetch(url);if(!res.ok)throw new Error(`HTTP ${res.status}`);const text=await res.text();if(/\.(md|markdown)$/.test(lower)){body.innerHTML=marked.parse(text);return;}if(/\.(json|geojson)$/.test(lower)){let pretty=text;try{pretty=JSON.stringify(JSON.parse(text),null,2);}catch{}body.innerHTML=`<pre>${escapeHtml(pretty)}</pre>`;return;}body.innerHTML=`<pre>${escapeHtml(text)}</pre>`;}catch(e){body.innerHTML=`<div class="muted">Preview failed: ${e.message}</div>`;}}
-function renderFiles(manifest){
-  // show the files section (landing is not used in this simplified view)
-  const landing = document.getElementById('landing');
-  const filesSection = document.getElementById('files');
-  if (landing) landing.classList.add('hide');
-  if (filesSection) filesSection.classList.remove('hide');
+$('previewClose').onclick=()=>{ history.replaceState(null,'',location.pathname+location.search); hidePreview(); };
+$('previewBackdrop').addEventListener('click',e=>{ if(e.target.id==='previewBackdrop'){ $('previewClose').click(); } });
+async function previewFile(url,filename){
+  const body=$('previewBody'); const open=$('previewOpenRaw'); const title=$('previewTitle');
+  title.textContent=filename; open.href=url; body.innerHTML='<div class="muted">Loading…</div>'; showPreview();
+  const lower=(filename||'').toLowerCase();
+  try{
+    if(/\.(png|jpe?g|gif|webp|svg)$/.test(lower)){ body.innerHTML=`<img src="${url}" alt="${filename}">`; return; }
+    if(/\.(mp4|webm|mov|m4v)$/.test(lower)){ body.innerHTML=`<video controls style="width:100%"><source src="${url}"></video>`; return; }
+    if(/\.(mp3|wav|ogg|m4a|flac)$/.test(lower)){ body.innerHTML=`<audio controls src="${url}"></audio>`; return; }
+    if(/\.pdf$/.test(lower)){ body.innerHTML=`<object data="${url}#view=FitH" type="application/pdf" style="width:100%;height:70vh"><div class="muted">PDF preview unavailable. Use “Open raw”.</div></object>`; return; }
+    if(/\.(html?|xhtml)$/.test(lower)){ body.innerHTML=`<iframe src="${url}" sandbox="allow-same-origin allow-forms allow-scripts" style="width:100%;height:70vh;border:0"></iframe>`; return; }
+    const res=await fetch(url); if(!res.ok) throw new Error(`HTTP ${res.status}`); const text=await res.text();
+    if(/\.(md|markdown)$/.test(lower)){ body.innerHTML = marked.parse(text); return; }
+    if(/\.(json|geojson)$/.test(lower)){ let pretty=text; try{ pretty=JSON.stringify(JSON.parse(text),null,2);}catch{} body.innerHTML=`<pre>${escapeHtml(pretty)}</pre>`; return; }
+    if(/\.(csv|tsv|txt)$/.test(lower)){ const lines=text.split(/
+?
+/); const head=lines.slice(0,400).join('
+'); body.innerHTML=`<pre>${escapeHtml(head)}${lines.length>400?'
+…(truncated)':''}</pre>`; return; }
+    body.innerHTML=`<pre>${escapeHtml(text)}</pre>`;
+  }catch(e){ body.innerHTML=`<div class="muted">Preview failed: ${e.message}</div>`; }
+}
 
-  // flatten files across repos/languages using existing manifest shape
-  const files=[];
-  for(const repo of (manifest.repos||[])){
-    for(const [lang,arr] of Object.entries(repo.languages||{})){
-      (arr||[]).forEach(f=>files.push({...f,repo:repo.name,url:chooseUrl(f),category:deriveCategory(f),_lang:lang}));
-    }
-  }
+// ===== App state & helpers =====
+let MANIFEST=null; let ALL_FILES=[]; // flattened for deep-link routing
+function flattenAllFiles(m){
+  const out=[]; for(const repo of (m.repos||[])){ for(const [lang,arr] of Object.entries(repo.languages||{})){
+    (arr||[]).forEach(f=>{ const url=chooseUrl(f); if(!url) return; out.push({ lang, repo:repo.name, path:f.path, size:f.size, title:f.title, url, category:deriveCategory(f) }); });
+  }} return out;
+}
 
-  // group JSON/MD (and any other extensions) by base path
-  const grouped={};
-  for(const f of files){
-    if(!f.path || !f.url) continue;
-    const base=f.path.replace(/\.(json|md|csv|tsv|txt|html?)$/i,'');
-    (grouped[base]??=[]).push(f);
-  }
+// ===== Landing (home) =====
+const LANG_LABELS={eng:{name:"English",blurb:"Resources in English"},fra:{name:"French",blurb:"Ressources en français"},hin:{name:"Hindi",blurb:"हिंदी संसाधन"},por:{name:"Portuguese",blurb:"Recursos em Português"},_datasets:{name:"Datasets",blurb:"General (not language-keyed)"}};
+function renderLanding(manifest){
+  MANIFEST=manifest; ALL_FILES=flattenAllFiles(MANIFEST);
+  const byLang={}; for(const f of ALL_FILES){ (byLang[f.lang]??=[]).push(f); }
+  const grid=Object.keys(byLang).map(lang=>{
+    const label=LANG_LABELS[lang]?.name||lang; const blurb=LANG_LABELS[lang]?.blurb||""; const count=byLang[lang].length;
+    return`<div class="card"><h3>${label}</h3><div class="muted">${blurb}</div><div class="muted" style="margin-top:4px">${count} file${count===1?'':'s'}</div><div style="margin-top:8px"><button class="btn" data-open="${lang}">Browse</button></div></div>`;
+  }).join('');
+  $('langGrid').innerHTML=grid||`<div class="muted">No files found.</div>`;
+  $('landing').classList.remove('hide'); $('files').classList.add('hide');
+  $('foot').textContent=`Catalog generated ${manifest.generatedAt || ''}`;
+  document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>renderFiles(byLang[b.dataset.open], b.dataset.open));
 
-  // build category chips from first path segment
-  const chipsEl = document.getElementById('chips');
-  const categories = Array.from(new Set(Object.values(grouped).map(arr=>deriveCategory(arr[0])))).sort();
-  let activeChip = 'All';
-  chipsEl.innerHTML = '';
-  const addChip = (name)=>{
-    const btn = document.createElement('button');
-    btn.className = 'chip' + (name===activeChip?' active':'');
-    btn.textContent = name;
-    btn.onclick = ()=>{ activeChip = name; renderList(); updateChipStyles(); };
-    chipsEl.appendChild(btn);
-  };
-  addChip('All'); categories.forEach(addChip);
-  function updateChipStyles(){
-    [...chipsEl.querySelectorAll('.chip')].forEach(el=>{
-      el.classList.toggle('active', el.textContent===activeChip);
-    });
-  }
+  // Deep link: if #file present, jump into its language and preselect
+  const wanted=getHash(); if(wanted){ const f=ALL_FILES.find(x=>x.path===wanted); if(f){ renderFiles(byLang[f.lang], f.lang, wanted); }}
+}
 
-  // search wiring (with Cmd/Ctrl+K focus)
-  const searchInput = document.getElementById('search');
-  let q = '';
-  searchInput.value='';
-  searchInput.oninput = ()=>{ q = searchInput.value.trim().toLowerCase(); renderList(); };
-  window.addEventListener('keydown', (e)=>{
-    if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='k') { e.preventDefault(); searchInput.focus(); searchInput.select(); }
+// ===== Files view (chips + search + grouping + deep links) =====
+function renderFiles(filesForLang, lang, preselectPath){
+  $('landing').classList.add('hide'); $('files').classList.remove('hide');
+  $('crumbs').innerHTML=`<a href="#" id="back">Home</a> / ${LANG_LABELS[lang]?.name||lang}`;
+  $('back').onclick=e=>{ e.preventDefault(); renderLanding(MANIFEST); };
+
+  // Build groups: base filename -> array of formats
+  const groups = new Map();
+  (filesForLang||[]).forEach(f=>{
+    const p=f.path||''; const base=p.replace(/\.[^.]+$/,'');
+    if(!groups.has(base)) groups.set(base, []);
+    groups.get(base).push(f);
   });
 
-  const list = document.getElementById('fileList');
+  // Chips (categories from first segment)
+  const chipsEl=$('chips');
+  const categories=[...new Set((filesForLang||[]).map(f=>deriveCategory(f)))].sort();
+  let activeChip='All'; chipsEl.innerHTML='';
+  const addChip=name=>{ const c=document.createElement('button'); c.className='chip'+(name===activeChip?' active':''); c.textContent=name; c.onclick=()=>{activeChip=name; renderList(); updateChips();}; chipsEl.appendChild(c); };
+  addChip('All'); categories.forEach(addChip);
+  function updateChips(){ [...chipsEl.querySelectorAll('.chip')].forEach(el=> el.classList.toggle('active', el.textContent===activeChip)); }
 
+  // Search
+  const input=$('search'); let q=''; input.value=''; input.oninput=()=>{ q=input.value.trim().toLowerCase(); renderList(); };
+  window.addEventListener('keydown',e=>{ if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){ e.preventDefault(); input.focus(); input.select(); }});
+
+  const list=$('fileList');
   function renderList(){
-    const rows = Object.entries(grouped)
-      .filter(([base, arr])=>{
-        const cat = deriveCategory(arr[0]);
-        const chipOk = (activeChip==='All') || (cat.toLowerCase()===activeChip.toLowerCase());
-        if(!chipOk) return false;
-        if(!q) return true;
-        const name = base.split('/').pop();
-        return base.toLowerCase().includes(q) || name.toLowerCase().includes(q) || (arr[0].repo||'').toLowerCase().includes(q);
-      })
-      .map(([base, arr])=>{
-        const name = base.split('/').pop();
-        const cat = deriveCategory(arr[0]);
-        const options = arr.map(f=>{
-          const type = ext(f.path);
-          return `<button class='btn' data-preview data-path="${encodeURIComponent(f.path)}">${type}</button>`;
-        }).join(' ');
-        return `<div class='row' data-base='${encodeURIComponent(base)}'>
-                  <div class='row-main'>
-                    <div class='name'>${name}</div>
-                    <div class='meta'>${cat} • ${arr[0].repo}</div>
-                    <div class='formats'>${options}</div>
-                  </div>
-                </div>`;
-      }).join('');
+    const rows = [...groups.entries()].filter(([base, arr])=>{
+      const cat = deriveCategory(arr[0]);
+      const chipOk = (activeChip==='All') || (cat.toLowerCase()===activeChip.toLowerCase());
+      if(!chipOk) return false;
+      if(!q) return true;
+      const name = base.split('/').pop();
+      return base.toLowerCase().includes(q) || name.toLowerCase().includes(q) || (arr[0].repo||'').toLowerCase().includes(q);
+    }).map(([base, arr])=>{
+      const name = base.split('/').pop(); const cat = deriveCategory(arr[0]);
+      // sort formats by common preference
+      const sorted = arr.slice().sort((a,b)=>{
+        const order = ['json','md','csv','tsv','pdf','html','png','jpg','jpeg','webp','svg'];
+        return order.indexOf(ext(a.path)) - order.indexOf(ext(b.path));
+      });
+      const fmtBtns = sorted.map(f=>{
+        const t = ext(f.path); const filename = `${name}.${t}`; const url = f.url || chooseUrl(f);
+        return `<button class='btn' data-preview data-path="${encodeURIComponent(f.path)}" data-url="${url}" data-name="${filename}">${t}</button>`;
+      }).join(' ');
+      return `<div class='row' data-base='${encodeURIComponent(base)}'>
+        <div class='row-main'>
+          <div class='name'>${name}</div>
+          <div class='meta'>${cat} • ${arr[0].repo}</div>
+          <div class='formats'>${fmtBtns}</div>
+        </div>
+      </div>`;
+    }).join('');
     list.innerHTML = rows || `<div class='muted'>No results.</div>`;
 
-    // wire up preview + deep link copy (hash updates to the exact file path)
+    // Wire preview buttons
     list.querySelectorAll('[data-preview]').forEach(btn=>{
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', ()=>{
         const p = decodeURIComponent(btn.getAttribute('data-path'));
-        const f = files.find(x => x.path === p);
-        if (!f) return;
-        history.replaceState(null, '', hashFor(p));
-        previewFile(f.url, (f.path||'').split('/').pop());
+        const url = btn.getAttribute('data-url');
+        const name = btn.getAttribute('data-name');
+        history.replaceState(null,'',hashFor(p));
+        previewFile(url, name);
       });
     });
 
-    // if URL has #file=..., auto-open that file when present in the current list
-    const wanted = (location.hash.match(/#file=([^&]+)/)||[])[1];
-    if (wanted) {
-      const decoded = decodeURIComponent(wanted);
-      const openBtn = list.querySelector(`[data-preview][data-path="${encodeURIComponent(decoded)}"]`);
-      if (openBtn) { openBtn.click(); }
-    }
+    // If deep-linked, auto-open it in this view
+    if(preselectPath){ const selector = `[data-preview][data-path="${encodeURIComponent(preselectPath)}"]`; const openBtn = list.querySelector(selector); if(openBtn){ openBtn.click(); } preselectPath=null; }
   }
+
   renderList();
 }
-loadManifest().then(renderFiles).catch(e=>{
-  document.body.innerHTML = `<div style='padding:40px;color:#f88'>Error loading manifest: ${e.message}</div>`;
+
+// ===== Router =====
+window.addEventListener('hashchange', ()=>{
+  const wanted = getHash();
+  if(!wanted){ // close modal if open
+    hidePreview(); return;
+  }
+  // If we are on landing, route into the correct language; if already in a language view, the button handler will open it
+  if($('files').classList.contains('hide')){
+    if(!MANIFEST) return; const all = flattenAllFiles(MANIFEST); const f = all.find(x=>x.path===wanted); if(!f) return;
+    const byLang = {}; all.forEach(x=> (byLang[x.lang]??=[]).push(x));
+    renderFiles(byLang[f.lang], f.lang, wanted);
+  }
 });
 
+// ===== Boot =====
+loadManifest().then(renderLanding).catch(e=>{
+  document.body.innerHTML = `<div style='padding:40px;color:#f88'>Error loading manifest: ${e.message}</div>`;
+});
 </script>
 </body>
 </html>
