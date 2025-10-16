@@ -147,6 +147,7 @@ function hidePreview(){ $('previewBackdrop').style.display='none'; }
 $('previewClose').onclick=()=>{ history.replaceState(null,'',location.pathname+location.search); hidePreview(); };
 $('previewBackdrop').addEventListener('click',e=>{ if(e.target.id==='previewBackdrop'){ $('previewClose').click(); } });
 // fixed newline handling in CSV/TSV preview (clean)
+// CLEAN PREVIEW FUNCTION
 async function previewFile(url,filename){
   const body=$('previewBody'); const open=$('previewOpenRaw'); const title=$('previewTitle');
   title.textContent=filename; open.href=url; body.innerHTML='<div class="muted">Loading…</div>'; showPreview();
@@ -181,28 +182,66 @@ function flattenAllFiles(m){
 // ===== Landing (home) =====
 const LANG_LABELS={ _datasets:{name:"Datasets", blurb:"General (not language-keyed)"} };
 function renderLanding(manifest){
-  MANIFEST=manifest; ALL_FILES=flattenAllFiles(MANIFEST);
-  const byLang={}; for(const f of ALL_FILES){ (byLang[f.lang]??=[]).push(f); }
-  const grid=Object.keys(byLang).map(lang=>{
-    const label = (LANG_LABELS[lang]?.name) || guessLangName(lang);
-    const blurb = LANG_LABELS[lang]?.blurb || '';
-    const count = byLang[lang].length;
-    return`<div class=\"card\"><h3>${label}</h3><div class=\"muted\">${blurb}</div><div class=\"muted\" style=\"margin-top:4px\">${count} file${count===1?'':'s'}</div><div style=\"margin-top:8px\"><button class=\"btn\" data-open=\"${lang}\">Browse</button></div></div>`;
+  MANIFEST = manifest; ALL_FILES = flattenAllFiles(MANIFEST);
+  // Build repo cards
+  const cards = (MANIFEST.repos||[]).map((repo, i)=>{
+    const langs = Object.keys(repo.languages||{});
+    const count = langs.reduce((n, k)=> n + ((repo.languages[k]||[]).length), 0);
+    return `<div class="card">
+      <h3>${repo.name}</h3>
+      <div class="muted">${langs.length} language${langs.length===1?'':'s'} • ${count} file${count===1?'':'s'}</div>
+      <div style="margin-top:8px"><button class="btn" data-open-repo="${i}">Browse</button></div>
+    </div>`;
   }).join('');
-  $('langGrid').innerHTML=grid||`<div class="muted">No files found.</div>`;
+  $('langGrid').innerHTML = cards || `<div class="muted">No repositories found.</div>`;
   $('landing').classList.remove('hide'); $('files').classList.add('hide');
-  $('foot').textContent=`Catalog generated ${manifest.generatedAt || ''}`;
-  document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>renderFiles(byLang[b.dataset.open], b.dataset.open));
+  $('foot').textContent = `Catalog generated ${manifest.generatedAt || ''}`;
+  document.querySelectorAll('[data-open-repo]').forEach(b=> b.onclick = ()=> renderRepoLanguages(parseInt(b.dataset.openRepo,10)) );
 
-  // Deep link: if #file present, jump into its language and preselect
-  const wanted=getHash(); if(wanted){ const f=ALL_FILES.find(x=>x.path===wanted); if(f){ renderFiles(byLang[f.lang], f.lang, wanted); }}
+  // Deep link: if #file present, open its repo/lang directly
+  const wanted = getHash();
+  if (wanted){
+    const f = ALL_FILES.find(x=>x.path===wanted);
+    if (f){
+      const repoIdx = (MANIFEST.repos||[]).findIndex(r=> r.name === f.repo);
+      if (repoIdx >= 0) renderFiles((MANIFEST.repos[repoIdx].languages[f.lang]||[]).map(x=>({...x, repo:f.repo, url:chooseUrl(x)})), f.lang, wanted, f.repo);
+    }
+  }
+}
+
+// Show a repo's languages as cards
+function renderRepoLanguages(repoIndex){
+  const repo = (MANIFEST.repos||[])[repoIndex];
+  if(!repo){ $('langGrid').innerHTML = `<div class="muted">Repository not found.</div>`; return; }
+  const langs = Object.keys(repo.languages||{});
+  const cards = langs.map(lang=>{
+    const files = (repo.languages[lang]||[]);
+    return `<div class="card">
+      <h3>${guessLangName(lang)}</h3>
+      <div class="muted">${files.length} file${files.length===1?'':'s'}</div>
+      <div style="margin-top:8px"><button class="btn" data-open-lang="${lang}" data-repo="${repoIndex}">Browse</button></div>
+    </div>`;
+  }).join('');
+  const back = `<div class="card"><h3>← Back</h3><div class="muted">Return to repositories</div><div style="margin-top:8px"><button class="btn" id="backRepos">Back</button></div></div>`;
+  $('langGrid').innerHTML = back + (cards || `<div class="muted">No languages found in this repository.</div>`);
+  $('landing').classList.remove('hide'); $('files').classList.add('hide');
+  $('backRepos').onclick = ()=> renderLanding(MANIFEST);
+  document.querySelectorAll('[data-open-lang]').forEach(b=>{
+    b.onclick = ()=>{
+      const idx = parseInt(b.getAttribute('data-repo'),10);
+      const lang = b.getAttribute('data-open-lang');
+      const repo2 = MANIFEST.repos[idx];
+      const files = (repo2.languages[lang]||[]).map(x=> ({...x, repo: repo2.name, url: chooseUrl(x)}));
+      renderFiles(files, lang, null, repo2.name);
+    };
+  });
 }
 
 // ===== Files view (chips + search + deep links) — classic row layout with actions on right =====
-function renderFiles(filesForLang, lang, preselectPath){
+function renderFiles(filesForLang, lang, preselectPath, repoName){
   $('landing').classList.add('hide'); $('files').classList.remove('hide');
-  $('crumbs').innerHTML=`<a href="#" id="back">Home</a> / ${guessLangName(lang)}`;
-  $('back').onclick=e=>{ e.preventDefault(); renderLanding(MANIFEST); };
+  $('crumbs').innerHTML=`<a href="#" id="back">Home</a> / ${repoName||''} / ${guessLangName(lang)}`;
+  $('back').onclick=e=>{ e.preventDefault(); renderRepoLanguages((MANIFEST.repos||[]).findIndex(r=> r.name === (repoName||''))); };
 
   // Chips from first path segment
   const chipsEl=$('chips');
