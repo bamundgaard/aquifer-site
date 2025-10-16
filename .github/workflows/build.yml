@@ -2,8 +2,13 @@ name: Build unified catalog manifest
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/build.yml'
   schedule:
-    - cron: '0 * * * *'  # hourly; adjust as needed
+    - cron: '0 * * * *'  # hourly
 
 permissions:
   contents: write
@@ -24,9 +29,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: main
-          REPOS_JSON: >-
-            ["bamundgaard/test-2025-10-13-BiblicaStudyNotesKeyTerms",
-             {"name":"BibleAquifer/ACAI","autodiscover":true,"asLang":"_datasets"}]
+          ORG_OR_USER: BiblioNexus-Content      # <- account to crawl
+          INCLUDE_FORKS: "false"                # set "true" to include forks
+          INCLUDE_ARCHIVED: "false"             # set "true" to include archived repos
+          PER_PAGE: "100"
+          MAX_PAGES: "10"
+          # Optional: append extra repos or special rules
+          EXTRA_REPOS_JSON: >-
+            [
+              {"name":"BibleAquifer/ACAI","autodiscover":true,"asLang":"_datasets"}
+            ]
           LANGUAGE_FOLDERS_JSON: '["eng","fra","hin","por"]'
         run: |
           node - <<'NODE'
@@ -35,9 +47,13 @@ jobs:
 
           const GH_TOKEN = process.env.GH_TOKEN;
           const BRANCH = process.env.BRANCH || 'main';
-          const RAW = JSON.parse(process.env.REPOS_JSON);
-          const LANGUAGE_FOLDERS = JSON.parse(process.env.LANGUAGE_FOLDERS_JSON);
-          const REPOS = RAW.map(r => (typeof r === 'string' ? { name: r } : r));
+          const ORG_OR_USER = process.env.ORG_OR_USER;
+          const INCLUDE_FORKS = (process.env.INCLUDE_FORKS || 'false').toLowerCase() === 'true';
+          const INCLUDE_ARCHIVED = (process.env.INCLUDE_ARCHIVED || 'false').toLowerCase() === 'true';
+          const PER_PAGE = Math.max(1, parseInt(process.env.PER_PAGE || '100', 10));
+          const MAX_PAGES = Math.max(1, parseInt(process.env.MAX_PAGES || '10', 10));
+          const EXTRA_REPOS = JSON.parse(process.env.EXTRA_REPOS_JSON || '[]');
+          const LANGUAGE_FOLDERS = JSON.parse(process.env.LANGUAGE_FOLDERS_JSON || '["eng","fra","hin","por"]');
 
           const IGNORE = [
             /^README(\.md|\.txt)?$/i, /^LICENSE(\.md|\.txt)?$/i,
@@ -67,6 +83,23 @@ jobs:
                 });
               }).on('error', reject);
             });
+          }
+
+          async function listAllReposForAccount(account){
+            // Try org endpoint first, fall back to user
+            const out = [];
+            async function pull(base){
+              for (let page=1; page<=MAX_PAGES; page++){
+                const path = `${base}?per_page=${PER_PAGE}&page=${page}`;
+                const batch = await gh(path);
+                if (!Array.isArray(batch) || batch.length === 0) break;
+                out.push(...batch);
+                if (batch.length < PER_PAGE) break;
+              }
+            }
+            try { await pull(`/orgs/${account}/repos`); }
+            catch { await pull(`/users/${account}/repos`); }
+            return out;
           }
 
           function isIgnored(name){ return IGNORE.some(re => re.test(name)); }
@@ -102,39 +135,59 @@ jobs:
           }
 
           (async ()=>{
+            // 1) Expand account into repos
+            const reposFromAccount = await listAllReposForAccount(ORG_OR_USER);
+            const baseRepos = reposFromAccount
+              .filter(r => (INCLUDE_FORKS || !r.fork))
+              .filter(r => (INCLUDE_ARCHIVED || !r.archived))
+              .map(r => ({ name: r.full_name }));
+
+            // 2) Merge with any EXTRA_REPOS entries
+            const REPOS = [...baseRepos, ...EXTRA_REPOS];
+
+            // 3) Build manifest in the same shape your site expects
             const manifest = { generatedAt: new Date().toISOString(), repos: [] };
 
             for (const cfg of REPOS){
               const [owner, repo] = cfg.name.split('/');
-
-              // AUTODISCOVER: pull all top-level folders as dataset categories
+              // AUTODISCOVER: treat each top-level folder as a dataset category under asLang (default _datasets)
               if (cfg.autodiscover){
-                const root = await listDir(owner, repo, '');
-                const topDirs = root.filter(x => x.type === 'dir' && !isIgnored(x.name)).map(x => x.name);
-                const languages = { [cfg.asLang || '_datasets']: [] };
-                for (const dir of topDirs){
-                  const files = await walk(owner, repo, dir);
-                  // prefix remains "<dir>/..." which our UI uses as category key
-                  languages[cfg.asLang || '_datasets'].push(...files);
+                try {
+                  const root = await listDir(owner, repo, '');
+                  const topDirs = root.filter(x => x.type === 'dir' && !isIgnored(x.name)).map(x => x.name);
+                  const languages = { [cfg.asLang || '_datasets']: [] };
+                  for (const dir of topDirs){
+                    const files = await walk(owner, repo, dir);
+                    languages[cfg.asLang || '_datasets'].push(...files);
+                  }
+                  manifest.repos.push({ name: cfg.name, branch: BRANCH, languages });
+                } catch (e){
+                  console.warn(`WARN autodiscover failed for ${cfg.name}: ${e.message}`);
                 }
-                manifest.repos.push({ name: cfg.name, branch: BRANCH, languages });
                 continue;
               }
 
-              // Standard: language folders at repo root
-              const root = await listDir(owner, repo, '');
-              const languages = {};
-              for (const item of root){
-                if (item.type === 'dir' && LANGUAGE_FOLDERS.includes(item.name)) {
-                  languages[item.name] = await walk(owner, repo, item.name);
+              // STANDARD: language folders at repo root (eng/fra/hin/por by default)
+              try {
+                const root = await listDir(owner, repo, '');
+                const languages = {};
+                for (const item of root){
+                  if (item.type === 'dir' && LANGUAGE_FOLDERS.includes(item.name)) {
+                    languages[item.name] = await walk(owner, repo, item.name);
+                  }
                 }
+                // Only add repos that produced at least one language bucket
+                if (Object.keys(languages).length){
+                  manifest.repos.push({ name: cfg.name, branch: BRANCH, languages });
+                }
+              } catch (e){
+                console.warn(`WARN listing failed for ${cfg.name}: ${e.message}`);
               }
-              manifest.repos.push({ name: cfg.name, branch: BRANCH, languages });
             }
 
             fs.mkdirSync('docs/data', { recursive: true });
             fs.writeFileSync('docs/data/manifest.json', JSON.stringify(manifest, null, 2));
-            console.log('✅ wrote docs/data/manifest.json');
+            console.log('✅ wrote docs/data/manifest.json with', manifest.repos.length, 'repos');
           })().catch(err=>{ console.error(err); process.exit(1); });
           NODE
 
