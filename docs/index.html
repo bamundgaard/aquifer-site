@@ -277,12 +277,16 @@
       return '<p>'+s+'</p>';
     }
 
- function toGitHubRaw(path){
-  // Ensures we keep /aquifer-site/ in the URL and resolve relative to current directory
-  const base = location.origin + location.pathname.replace(/[^/]*$/, '');
-  return new URL(path, base).toString();
-}
-
+    // GitHub raw URL fallback: assumes this page is served from a GH Pages repo
+    function toGitHubRaw(path){
+      // Try to infer from current location: https://{user}.github.io/{repo}/
+      const {host, pathname} = location;
+      const parts = pathname.split('/').filter(Boolean);
+      const repo = parts[0] || '';
+      // Typical raw: https://raw.githubusercontent.com/{user}/{repo}/main/{path}
+      // We cannot know user or branch reliably; try current origin path first
+      return (location.origin + '/' + path).replace(/\/+/, '/');
+    }
 
     // Keyboard
     window.addEventListener('keydown', (e)=>{
@@ -313,16 +317,40 @@
         }
       }
 
-      // Normalize manifest: accept {files:[...]} or array [...]
-      const rawFiles = Array.isArray(manifest) ? manifest : (manifest.files || []);
-      state.files = rawFiles.map(f => ({
-        path: f.path || f.filepath || f.key || f.name,
-        url: f.url || f.raw_url,
-        size: f.size,
-        type: f.type || f.mimetype || f.mime,
-        title: f.title || f.label,
-        category: f.category
-      })).filter(x => !!x.path);
+      // Normalize manifest: accept many shapes (array, {files:[]}, {items:[]}, {entries:[]}, {data:[]}, {rows:[]})
+      function extractFiles(manifest){
+        if (Array.isArray(manifest)) return manifest;
+        const candidates = [manifest.files, manifest.items, manifest.entries, manifest.data, manifest.rows];
+        for (const c of candidates){ if (Array.isArray(c)) return c; }
+        // Last resort: if the first enumerable value is an array, use it
+        for (const k of Object.keys(manifest||{})){
+          if (Array.isArray(manifest[k])) return manifest[k];
+        }
+        return [];
+      }
+
+      const rawFiles = extractFiles(manifest);
+      const baseUrl = manifest.baseUrl || manifest.base_url || '';
+
+      state.files = rawFiles.map(f => {
+        const p = f.path || f.filepath || f.key || f.name;
+        const guessedType = (f.type || f.mimetype || f.mime || (p? p.split('.').pop() : ''));
+        let u = f.url || f.raw_url || f.downloadRaw || f.downloadCdn;
+        if (!u && baseUrl && p){ try { u = new URL(p, baseUrl).toString(); } catch(_){} }
+        return {
+          path: p,
+          url: u,
+          size: f.size,
+          type: guessedType,
+          title: f.title || f.label,
+          category: f.category,
+          sha: f.sha
+        };
+      }).filter(x => !!x.path);
+
+      if (!state.files.length){
+        console.warn('[Aquifer] Manifest loaded but contained 0 files. Keys present:', Object.keys(manifest));
+      }
 
       renderChips();
       renderTree();
