@@ -97,7 +97,109 @@ function hidePreview(){ $('previewBackdrop').style.display='none'; }
 $('previewClose').onclick=hidePreview;
 $('previewBackdrop').addEventListener('click',e=>{if(e.target.id==='previewBackdrop')hidePreview();});
 async function previewFile(url,filename){const body=$('previewBody');const open=$('previewOpenRaw');const title=$('previewTitle');title.textContent=filename;open.href=url;body.innerHTML='<div class="muted">Loading…</div>';showPreview();const lower=(filename||'').toLowerCase();try{if(/\.(png|jpe?g|gif|webp|svg)$/.test(lower)){body.innerHTML=`<img src="${url}" alt="${filename}">`;return;}if(/\.(mp4|webm|mov|m4v)$/.test(lower)){body.innerHTML=`<video controls style="width:100%"><source src="${url}"></video>`;return;}if(/\.(mp3|wav|ogg|m4a|flac)$/.test(lower)){body.innerHTML=`<audio controls src="${url}"></audio>`;return;}if(/\.pdf$/.test(lower)){body.innerHTML=`<object data="${url}#view=FitH" type="application/pdf" style="width:100%;height:70vh"><div class="muted">PDF preview unavailable. Use “Open raw”.</div></object>`;return;}if(/\.(html?|xhtml)$/.test(lower)){body.innerHTML=`<iframe src="${url}" sandbox="allow-same-origin allow-forms allow-scripts" style="width:100%;height:70vh;border:0"></iframe>`;return;}const res=await fetch(url);if(!res.ok)throw new Error(`HTTP ${res.status}`);const text=await res.text();if(/\.(md|markdown)$/.test(lower)){body.innerHTML=marked.parse(text);return;}if(/\.(json|geojson)$/.test(lower)){let pretty=text;try{pretty=JSON.stringify(JSON.parse(text),null,2);}catch{}body.innerHTML=`<pre>${escapeHtml(pretty)}</pre>`;return;}body.innerHTML=`<pre>${escapeHtml(text)}</pre>`;}catch(e){body.innerHTML=`<div class="muted">Preview failed: ${e.message}</div>`;}}
-function renderFiles(manifest){const files=[];for(const repo of manifest.repos){for(const [lang,arr] of Object.entries(repo.languages||{})){arr.forEach(f=>files.push({...f,repo:repo.name,url:chooseUrl(f),category:deriveCategory(f)}));}}const grouped={};for(const f of files){const base=f.path.replace(/\.(json|md)$/,'');(grouped[base]??=[]).push(f);}const list=$('fileList');list.innerHTML=Object.entries(grouped).map(([base,arr])=>{const name=base.split('/').pop();const cat=deriveCategory(arr[0]);const options=arr.map(f=>{const type=ext(f.path);return`<button class='btn' onclick="previewFile('${f.url}','${name}.${type}')">${type}</button>`;}).join(' ');return`<div class='row'><div class='row-main'><div class='name'>${name}</div><div class='meta'>${cat} • ${arr[0].repo}</div><div class='formats'>${options}</div></div></div>`;}).join('');}
+function renderFiles(manifest){
+  // show the files section (landing is not used in this simplified view)
+  const landing = document.getElementById('landing');
+  const filesSection = document.getElementById('files');
+  if (landing) landing.classList.add('hide');
+  if (filesSection) filesSection.classList.remove('hide');
+
+  // flatten files across repos/languages using existing manifest shape
+  const files=[];
+  for(const repo of (manifest.repos||[])){
+    for(const [lang,arr] of Object.entries(repo.languages||{})){
+      (arr||[]).forEach(f=>files.push({...f,repo:repo.name,url:chooseUrl(f),category:deriveCategory(f),_lang:lang}));
+    }
+  }
+
+  // group JSON/MD (and any other extensions) by base path
+  const grouped={};
+  for(const f of files){
+    if(!f.path || !f.url) continue;
+    const base=f.path.replace(/\.(json|md|csv|tsv|txt|html?)$/i,'');
+    (grouped[base]??=[]).push(f);
+  }
+
+  // build category chips from first path segment
+  const chipsEl = document.getElementById('chips');
+  const categories = Array.from(new Set(Object.values(grouped).map(arr=>deriveCategory(arr[0])))).sort();
+  let activeChip = 'All';
+  chipsEl.innerHTML = '';
+  const addChip = (name)=>{
+    const btn = document.createElement('button');
+    btn.className = 'chip' + (name===activeChip?' active':'');
+    btn.textContent = name;
+    btn.onclick = ()=>{ activeChip = name; renderList(); updateChipStyles(); };
+    chipsEl.appendChild(btn);
+  };
+  addChip('All'); categories.forEach(addChip);
+  function updateChipStyles(){
+    [...chipsEl.querySelectorAll('.chip')].forEach(el=>{
+      el.classList.toggle('active', el.textContent===activeChip);
+    });
+  }
+
+  // search wiring (with Cmd/Ctrl+K focus)
+  const searchInput = document.getElementById('search');
+  let q = '';
+  searchInput.value='';
+  searchInput.oninput = ()=>{ q = searchInput.value.trim().toLowerCase(); renderList(); };
+  window.addEventListener('keydown', (e)=>{
+    if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='k') { e.preventDefault(); searchInput.focus(); searchInput.select(); }
+  });
+
+  const list = document.getElementById('fileList');
+
+  function renderList(){
+    const rows = Object.entries(grouped)
+      .filter(([base, arr])=>{
+        const cat = deriveCategory(arr[0]);
+        const chipOk = (activeChip==='All') || (cat.toLowerCase()===activeChip.toLowerCase());
+        if(!chipOk) return false;
+        if(!q) return true;
+        const name = base.split('/').pop();
+        return base.toLowerCase().includes(q) || name.toLowerCase().includes(q) || (arr[0].repo||'').toLowerCase().includes(q);
+      })
+      .map(([base, arr])=>{
+        const name = base.split('/').pop();
+        const cat = deriveCategory(arr[0]);
+        const options = arr.map(f=>{
+          const type = ext(f.path);
+          return `<button class='btn' data-preview data-path="${encodeURIComponent(f.path)}">${type}</button>`;
+        }).join(' ');
+        return `<div class='row' data-base='${encodeURIComponent(base)}'>
+                  <div class='row-main'>
+                    <div class='name'>${name}</div>
+                    <div class='meta'>${cat} • ${arr[0].repo}</div>
+                    <div class='formats'>${options}</div>
+                  </div>
+                </div>`;
+      }).join('');
+    list.innerHTML = rows || `<div class='muted'>No results.</div>`;
+
+    // wire up preview + deep link copy (hash updates to the exact file path)
+    list.querySelectorAll('[data-preview]').forEach(btn=>{
+      btn.addEventListener('click', () => {
+        const p = decodeURIComponent(btn.getAttribute('data-path'));
+        const f = files.find(x => x.path === p);
+        if (!f) return;
+        history.replaceState(null, '', hashFor(p));
+        previewFile(f.url, (f.path||'').split('/').pop());
+      });
+    });
+
+    // if URL has #file=..., auto-open that file when present in the current list
+    const wanted = (location.hash.match(/#file=([^&]+)/)||[])[1];
+    if (wanted) {
+      const decoded = decodeURIComponent(wanted);
+      const openBtn = list.querySelector(`[data-preview][data-path="${encodeURIComponent(decoded)}"]`);
+      if (openBtn) { openBtn.click(); }
+    }
+  }
+
+  renderList();
+}
+)){arr.forEach(f=>files.push({...f,repo:repo.name,url:chooseUrl(f),category:deriveCategory(f)}));}}const grouped={};for(const f of files){const base=f.path.replace(/\.(json|md)$/,'');(grouped[base]??=[]).push(f);}const list=$('fileList');list.innerHTML=Object.entries(grouped).map(([base,arr])=>{const name=base.split('/').pop();const cat=deriveCategory(arr[0]);const options=arr.map(f=>{const type=ext(f.path);return`<button class='btn' onclick="previewFile('${f.url}','${name}.${type}')">${type}</button>`;}).join(' ');return`<div class='row'><div class='row-main'><div class='name'>${name}</div><div class='meta'>${cat} • ${arr[0].repo}</div><div class='formats'>${options}</div></div></div>`;}).join('');}
 loadManifest().then(renderFiles).catch(e=>{document.body.innerHTML=`<div style='padding:40px;color:#f88'>Error loading manifest: ${e.message}</div>`;});
 </script>
 </body>
