@@ -277,16 +277,12 @@
       return '<p>'+s+'</p>';
     }
 
-    // GitHub raw URL fallback: assumes this page is served from a GH Pages repo
-    function toGitHubRaw(path){
-      // Try to infer from current location: https://{user}.github.io/{repo}/
-      const {host, pathname} = location;
-      const parts = pathname.split('/').filter(Boolean);
-      const repo = parts[0] || '';
-      // Typical raw: https://raw.githubusercontent.com/{user}/{repo}/main/{path}
-      // We cannot know user or branch reliably; try current origin path first
-      return (location.origin + '/' + path).replace(/\/+/, '/');
-    }
+ function toGitHubRaw(path){
+  // Ensures we keep /aquifer-site/ in the URL and resolve relative to current directory
+  const base = location.origin + location.pathname.replace(/[^/]*$/, '');
+  return new URL(path, base).toString();
+}
+
 
     // Keyboard
     window.addEventListener('keydown', (e)=>{
