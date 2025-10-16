@@ -196,11 +196,12 @@ function renderFiles(manifest){
       if (openBtn) { openBtn.click(); }
     }
   }
-
   renderList();
 }
-)){arr.forEach(f=>files.push({...f,repo:repo.name,url:chooseUrl(f),category:deriveCategory(f)}));}}const grouped={};for(const f of files){const base=f.path.replace(/\.(json|md)$/,'');(grouped[base]??=[]).push(f);}const list=$('fileList');list.innerHTML=Object.entries(grouped).map(([base,arr])=>{const name=base.split('/').pop();const cat=deriveCategory(arr[0]);const options=arr.map(f=>{const type=ext(f.path);return`<button class='btn' onclick="previewFile('${f.url}','${name}.${type}')">${type}</button>`;}).join(' ');return`<div class='row'><div class='row-main'><div class='name'>${name}</div><div class='meta'>${cat} • ${arr[0].repo}</div><div class='formats'>${options}</div></div></div>`;}).join('');}
-loadManifest().then(renderFiles).catch(e=>{document.body.innerHTML=`<div style='padding:40px;color:#f88'>Error loading manifest: ${e.message}</div>`;});
+loadManifest().then(renderFiles).catch(e=>{
+  document.body.innerHTML = `<div style='padding:40px;color:#f88'>Error loading manifest: ${e.message}</div>`;
+});
+
 </script>
 </body>
 </html>
