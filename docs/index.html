@@ -26,19 +26,14 @@
   .crumbs{color:var(--muted);font-size:14px;margin-bottom:12px}
   .hide{display:none}
   footer{border-top:1px solid var(--line);margin-top:24px;padding:24px;color:var(--muted);font-size:12px;text-align:center}
-  .files-wrap{display:grid;grid-template-columns:280px 1fr;gap:16px;min-height:65vh}
-  .sidebar{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:12px;position:sticky;top:92px;height:fit-content}
-  .chips{display:flex;flex-wrap:wrap;gap:8px}
-  .chip{cursor:pointer;border:1px solid #2a3246;background:#111933;color:var(--muted);padding:6px 10px;border-radius:999px;font-size:12px}
-  .chip.active{color:var(--text);border-color:#3a4770}
-  .searchbar{display:flex;gap:8px;margin-top:12px}
+  .files-wrap{display:grid;grid-template-columns:1fr;gap:16px;min-height:65vh}
+  .searchbar{display:flex;gap:8px;margin-bottom:12px}
   .searchbar input{flex:1;padding:10px;border-radius:8px;border:1px solid #2a3246;background:#111933;color:var(--text)}
   .list{display:flex;flex-direction:column;gap:8px}
   .row{display:flex;justify-content:space-between;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
   .row-main{display:flex;flex-direction:column;gap:2px}
   .name{font-weight:600}
   .meta{font-size:12px;color:var(--muted)}
-  .formats{display:flex;gap:6px;margin-top:4px}
   .toolbar{display:flex;gap:8px;align-items:center}
   .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:1000}
   .modal{width:min(1000px,92vw);max-height:90vh;background:#0f1730;border:1px solid #1c2438;border-radius:12px;overflow:auto}
@@ -62,51 +57,53 @@
     <section id="files" class="hide">
       <div class="crumbs" id="crumbs"></div>
       <div class="files-wrap">
-        <aside class="sidebar">
-          <div class="chips" id="chips"></div>
-          <div class="searchbar"><input id="search" type="search" placeholder="Filter files… (⌘/Ctrl+K)" /></div>
-        </aside>
-        <div><div class="list" id="fileList"></div></div>
+        <div class="searchbar"><input id="search" type="search" placeholder="Filter files… (⌘/Ctrl+K)" /></div>
+        <div class="list" id="fileList"></div>
       </div>
     </section>
   </main>
   <footer id="foot"></footer>
+
+  <!-- Preview Modal -->
   <div id="previewBackdrop" class="modal-backdrop">
     <div class="modal">
       <header>
         <div id="previewTitle" class="title">Preview</div>
         <div class="actions">
           <a id="previewOpenRaw" class="btn" target="_blank" rel="noopener">Open raw</a>
-          <button id="previewCopyLink" class="btn">Copy link</button>
           <button id="previewClose" class="btn">Close</button>
         </div>
       </header>
       <div id="previewBody" class="body"><div class="muted">Loading…</div></div>
     </div>
   </div>
+
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script>
+// ===== Error overlay to avoid silent blanks =====
+window.addEventListener('error', (e)=>{
+  const div = document.createElement('div');
+  div.style = 'background:#331; color:#f88; padding:10px 14px; border-bottom:1px solid #633; font-family: ui-sans-serif, system-ui; position:sticky; top:0; z-index:9999;';
+  div.textContent = `Script error: ${e.message}`;
+  document.body.prepend(div);
+});
+
 // ===== Language Name Guessing =====
 const LANGUAGE_NAME_MAP = {
-  en:"English", fr:"French", es:"Spanish", pt:"Portuguese", de:"German",
-  zh:"Chinese", ru:"Russian", ar:"Arabic", hi:"Hindi",
-  eng:"English", fra:"French", fre:"French", spa:"Spanish", por:"Portuguese",
-  deu:"German", ger:"German", zho:"Chinese", rus:"Russian",
-  arb:"Arabic", ara:"Arabic", hin:"Hindi", ben:"Bengali", pan:"Punjabi",
-  urd:"Urdu", fas:"Persian", pes:"Persian", amh:"Amharic", som:"Somali",
-  swa:"Swahili", tpi:"Tok Pisin", vie:"Vietnamese", jpn:"Japanese", kor:"Korean",
-  tur:"Turkish", ind:"Indonesian", msa:"Malay", tha:"Thai", tam:"Tamil",
-  tel:"Telugu", mar:"Marathi", guj:"Gujarati", ita:"Italian", nld:"Dutch",
-  dan:"Danish", nor:"Norwegian", fin:"Finnish", swe:"Swedish", pol:"Polish",
-  ukr:"Ukrainian", _datasets:"Datasets"
+  en:"English", fr:"French", es:"Spanish", pt:"Portuguese", de:"German", zh:"Chinese", ru:"Russian", ar:"Arabic", hi:"Hindi",
+  eng:"English", fra:"French", fre:"French", spa:"Spanish", por:"Portuguese", deu:"German", ger:"German", zho:"Chinese", rus:"Russian",
+  arb:"Arabic", ara:"Arabic", hin:"Hindi", ben:"Bengali", pan:"Punjabi", urd:"Urdu", fas:"Persian", pes:"Persian",
+  amh:"Amharic", som:"Somali", swa:"Swahili", tpi:"Tok Pisin", vie:"Vietnamese", jpn:"Japanese", kor:"Korean",
+  tur:"Turkish", ind:"Indonesian", msa:"Malay", tha:"Thai", tam:"Tamil", tel:"Telugu", mar:"Marathi", guj:"Gujarati",
+  ita:"Italian", nld:"Dutch", dan:"Danish", nor:"Norwegian", fin:"Finnish", swe:"Swedish", pol:"Polish", ukr:"Ukrainian",
+  _datasets:"Datasets"
 };
 function guessLangName(code){
   const c = String(code||'').toLowerCase();
   if (LANGUAGE_NAME_MAP[c]) return LANGUAGE_NAME_MAP[c];
   const base = c.split(/[-_]/)[0];
   if (LANGUAGE_NAME_MAP[base]) return LANGUAGE_NAME_MAP[base];
-  try {
-    const dn = new Intl.DisplayNames(['en'], { type: 'language' });
+  try { const dn = new Intl.DisplayNames(['en'], { type: 'language' });
     const n = dn.of(c) || dn.of(base);
     if (n && n.toLowerCase() !== c) return n.charAt(0).toUpperCase() + n.slice(1);
   } catch {}
@@ -119,35 +116,20 @@ const ext=p=>(p?.split('.').pop()||'').toLowerCase();
 const hashFor=p=>'#file='+encodeURIComponent(p);
 const getHash=()=>{const m=location.hash.match(/#file=([^&]+)/);return m?decodeURIComponent(m[1]):null;};
 const escapeHtml=s=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
-const chooseUrl=f=>f.downloadCdn||f.downloadCDN||f.downloadRaw||f.url; // keep existing schema
-const deriveCategory=f=> (f.path||'').split('/')[0]||'misc'; // first path segment
+const chooseUrl=f=>f.downloadCdn||f.downloadCDN||f.downloadRaw||f.url;
+const deriveCategory=f=> (f.path||'').split('/')[0]||'misc';
+function humanBytes(n){if(n==null)return"";const u=["B","KB","MB","GB"],i=Math.floor(Math.log(n)/Math.log(1024));return`${(n/Math.pow(1024,i)).toFixed(1)} ${u[i]}`;}
+async function loadManifest(){const r=await fetch('./data/manifest.json',{cache:'no-store'});if(!r.ok)throw new Error('manifest missing');return r.json();}
+async function forceDownload(u, filename){const res=await fetch(u);const blob=await res.blob();const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename||u.split('/').pop();document.body.appendChild(a);a.click();URL.revokeObjectURL(a.href);a.remove();}
 
-async function loadManifest(){
-  const r=await fetch('./data/manifest.json',{cache:'no-store'});
-  if(!r.ok) throw new Error('manifest missing');
-  return r.json();
-}
-
-// simple forced download helper
-async function forceDownload(u, filename){
-  const res = await fetch(u);
-  const blob = await res.blob();
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename || u.split('/').pop();
-  document.body.appendChild(a);
-  a.click();
-  URL.revokeObjectURL(a.href);
-  a.remove();
-}
+// ===== Repo name formatting =====
+function formatRepoName(name){ if(!name) return ''; const short = name.split('/').pop(); return short.replace(/([a-z])([A-Z])/g, '$1 $2').trim(); }
 
 // ===== Preview Modal =====
 function showPreview(){ $('previewBackdrop').style.display='flex'; }
 function hidePreview(){ $('previewBackdrop').style.display='none'; }
 $('previewClose').onclick=()=>{ history.replaceState(null,'',location.pathname+location.search); hidePreview(); };
 $('previewBackdrop').addEventListener('click',e=>{ if(e.target.id==='previewBackdrop'){ $('previewClose').click(); } });
-// fixed newline handling in CSV/TSV preview (clean)
-// CLEAN PREVIEW FUNCTION
 async function previewFile(url,filename){
   const body=$('previewBody'); const open=$('previewOpenRaw'); const title=$('previewTitle');
   title.textContent=filename; open.href=url; body.innerHTML='<div class="muted">Loading…</div>'; showPreview();
@@ -171,24 +153,23 @@ async function previewFile(url,filename){
   }catch(e){ body.innerHTML=`<div class="muted">Preview failed: ${e.message}</div>`; }
 }
 
-// ===== App state & helpers =====
-let MANIFEST=null; let ALL_FILES=[]; // flattened for deep-link routing
+// ===== Data flatten =====
+let MANIFEST=null; let ALL_FILES=[];
 function flattenAllFiles(m){
   const out=[]; for(const repo of (m.repos||[])){ for(const [lang,arr] of Object.entries(repo.languages||{})){
     (arr||[]).forEach(f=>{ const url=chooseUrl(f); if(!url) return; out.push({ lang, repo:repo.name, path:f.path, size:f.size, title:f.title, url, category:deriveCategory(f) }); });
   }} return out;
 }
 
-// ===== Landing (home) =====
-const LANG_LABELS={ _datasets:{name:"Datasets", blurb:"General (not language-keyed)"} };
+// ===== Landing (by repository) =====
 function renderLanding(manifest){
   MANIFEST = manifest; ALL_FILES = flattenAllFiles(MANIFEST);
-  // Build repo cards
   const cards = (MANIFEST.repos||[]).map((repo, i)=>{
     const langs = Object.keys(repo.languages||{});
     const count = langs.reduce((n, k)=> n + ((repo.languages[k]||[]).length), 0);
+    const displayName = formatRepoName(repo.name);
     return `<div class="card">
-      <h3>${repo.name}</h3>
+      <h3>${displayName}</h3>
       <div class="muted">${langs.length} language${langs.length===1?'':'s'} • ${count} file${count===1?'':'s'}</div>
       <div style="margin-top:8px"><button class="btn" data-open-repo="${i}">Browse</button></div>
     </div>`;
@@ -237,33 +218,20 @@ function renderRepoLanguages(repoIndex){
   });
 }
 
-// ===== Files view (chips + search + deep links) — classic row layout with actions on right =====
+// ===== Files view (classic row layout with actions) =====
 function renderFiles(filesForLang, lang, preselectPath, repoName){
   $('landing').classList.add('hide'); $('files').classList.remove('hide');
-  $('crumbs').innerHTML=`<a href="#" id="back">Home</a> / ${repoName||''} / ${guessLangName(lang)}`;
+  $('crumbs').innerHTML = `<a href="#" id="back">Home</a> / ${formatRepoName(repoName||'')} / ${guessLangName(lang)}`;
   $('back').onclick=e=>{ e.preventDefault(); renderRepoLanguages((MANIFEST.repos||[]).findIndex(r=> r.name === (repoName||''))); };
 
-  // Chips from first path segment
-  const chipsEl=$('chips');
-  const categories=[...new Set((filesForLang||[]).map(f=>deriveCategory(f)))].sort();
-  let activeChip='All'; chipsEl.innerHTML='';
-  const addChip=name=>{ const c=document.createElement('button'); c.className='chip'+(name===activeChip?' active':''); c.textContent=name; c.onclick=()=>{activeChip=name; renderList(); updateChips();}; chipsEl.appendChild(c); };
-  addChip('All'); categories.forEach(addChip);
-  function updateChips(){ [...chipsEl.querySelectorAll('.chip')].forEach(el=> el.classList.toggle('active', el.textContent===activeChip)); }
-
-  // Search
   const input=$('search'); let q=''; input.value=''; input.oninput=()=>{ q=input.value.trim().toLowerCase(); renderList(); };
   window.addEventListener('keydown',e=>{ if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){ e.preventDefault(); input.focus(); input.select(); }});
 
   const list=$('fileList');
   function renderList(){
-    // Flatten to individual files (no grouping), classic layout
     const rows = (filesForLang||[])
       .filter(f=> chooseUrl(f))
       .filter(f=>{
-        const cat = deriveCategory(f);
-        const chipOk = (activeChip==='All') || (cat.toLowerCase()===activeChip.toLowerCase());
-        if(!chipOk) return false;
         if(!q) return true;
         const name = (f.path||'').split('/').pop();
         return (f.path||'').toLowerCase().includes(q) || (name||'').toLowerCase().includes(q) || (f.repo||'').toLowerCase().includes(q);
@@ -275,7 +243,7 @@ function renderFiles(filesForLang, lang, preselectPath, repoName){
         return `<div class='row' data-path="${encodeURIComponent(f.path)}">
           <div class='row-main'>
             <div class='name'>${name}</div>
-            <div class='meta'>${cat} • ${f.repo||''}</div>
+            <div class='meta'>${cat} • ${f.repo||''} • ${humanBytes(f.size)}</div>
           </div>
           <div class='toolbar'>
             <button class='btn' data-preview>Preview</button>
@@ -305,26 +273,17 @@ function renderFiles(filesForLang, lang, preselectPath, repoName){
   renderList();
 }
 
-// ===== Router =====
+// ===== Hash router for deep links =====
 window.addEventListener('hashchange', ()=>{
   const wanted = getHash();
-  if(!wanted){ // close modal if open
-    hidePreview(); return;
-  }
-  // If we are on landing, route into the correct language; if already in a language view, the button handler will open it
+  if(!wanted){ hidePreview(); return; }
   if($('files').classList.contains('hide')){
-    if(!MANIFEST) return; const all = flattenAllFiles(MANIFEST); const f = all.find(x=>x.path===wanted); if(!f) return;
-    const byLang = {}; all.forEach(x=> (byLang[x.lang]??=[]).push(x));
-    renderFiles(byLang[f.lang], f.lang, wanted);
+    if(!MANIFEST) return; const f = flattenAllFiles(MANIFEST).find(x=>x.path===wanted); if(!f) return;
+    const byRepo = (MANIFEST.repos||[]).find(r=> r.name === f.repo);
+    if(!byRepo) return;
+    const files = (byRepo.languages[f.lang]||[]).map(x=> ({...x, repo: byRepo.name, url: chooseUrl(x)}));
+    renderFiles(files, f.lang, wanted, byRepo.name);
   }
-});
-
-// surface script errors so we don't get a silent blank page
-window.addEventListener('error', (e)=>{
-  const div = document.createElement('div');
-  div.style = 'background:#331; color:#f88; padding:10px 14px; border-bottom:1px solid #633; font-family: ui-sans-serif, system-ui; position:sticky; top:0; z-index:9999;';
-  div.textContent = `Script error: ${e.message}`;
-  document.body.prepend(div);
 });
 
 // ===== Boot =====
