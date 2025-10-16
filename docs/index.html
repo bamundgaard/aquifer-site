@@ -14,9 +14,26 @@
   body{margin:0;background:var(--bg);color:var(--text)}
   a{color:inherit}
   header{padding:24px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:10}
-  .brand{font-size:22px;font-weight:700;color:var(--accent)}
+  .brand{font-size:22px;font-weight:700;color:var(--accent);display:inline-flex;align-items:center;gap:8px}
+  .logo{width:28px;height:28px;display:inline-block}
+  .logo path,.logo circle,.logo rect{stroke:#7aa6ff}
+  .logo .fill{fill:#7aa6ff;opacity:.12}
+  .logo .stroke{stroke:#7aa6ff;opacity:.85}
+  .logo .node{fill:#7aa6ff;opacity:.9}
   .subtitle{color:var(--muted);margin-top:4px}
   main{max-width:1200px;margin:0 auto;padding:16px 24px 24px}
+  /* hero */
+  .hero{position:relative;overflow:hidden;margin:16px 0 22px;padding:18px 18px;border:1px solid var(--line);border-radius:16px;
+    background: radial-gradient(1200px 400px at 10% -10%, rgba(122,166,255,.18), rgba(122,166,255,0)) ,
+                linear-gradient(145deg, #0e1630, #0b1326);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.02), 0 8px 30px rgba(0,0,0,.25);
+  }
+  .hero h2{margin:0 0 6px;font-size:20px;letter-spacing:.2px}
+  .hero p{margin:0;color:var(--muted)}
+  .hero .badges{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
+  .badge{font-size:12px;border:1px solid #2a3246;background:#111933;padding:4px 8px;border-radius:999px;color:#cfd6ee}
+  .badge svg{vertical-align:-2px;margin-right:4px}
+  /* --- polish --- */
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:20px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
   .card h3{margin:0 0 8px;font-size:18px}
@@ -43,15 +60,76 @@
   .modal .body{padding:16px}
   .modal pre{white-space:pre-wrap;word-break:break-word;background:#0b1220;border:1px solid #1c2438;border-radius:8px;padding:12px;overflow:auto}
   .modal img{max-width:100%;height:auto;border-radius:8px;border:1px solid #1c2438}
+  /* --- polish --- */
+  .card{position:relative;overflow:hidden;transition:transform .18s ease, box-shadow .18s ease}
+  .card:hover{transform:translateY(-2px);box-shadow:0 6px 22px rgba(0,0,0,.35)}
+  .repo-head{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+  .repo-icon{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-weight:700;letter-spacing:.5px}
+  .pills{display:flex;gap:8px;margin-top:8px}
+  .pill{font-size:12px;color:var(--muted);border:1px solid var(--line);padding:2px 8px;border-radius:999px}
 </style>
 </head>
 <body>
   <header>
-    <div class="brand">Aquifer Unified Catalog</div>
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+        <!-- open book base -->
+        <path class="stroke" d="M8 18c8-4 16-4 24 0m24 0c-8-4-16-4-24 0M8 18v28c8-4 16-4 24 0m24 0V18" fill="none" stroke-width="2"/>
+        <!-- page center -->
+        <path class="stroke" d="M32 46V18" fill="none" stroke-width="2"/>
+        <!-- circuit traces left -->
+        <path class="stroke" d="M20 26h-6m6 6h-8m8 6h-4" fill="none" stroke-width="2" stroke-linecap="round"/>
+        <circle class="node" cx="14" cy="26" r="2"/>
+        <circle class="node" cx="12" cy="32" r="2"/>
+        <circle class="node" cx="16" cy="38" r="2"/>
+        <!-- circuit traces right -->
+        <path class="stroke" d="M44 26h6m-6 6h8m-8 6h4" fill="none" stroke-width="2" stroke-linecap="round"/>
+        <circle class="node" cx="50" cy="26" r="2"/>
+        <circle class="node" cx="52" cy="32" r="2"/>
+        <circle class="node" cx="48" cy="38" r="2"/>
+        <!-- subtle page fill -->
+        <path class="fill" d="M8 18v28c8-4 16-4 24 0V18c-8-4-16-4-24 0Z"/>
+        <path class="fill" d="M56 18v28c-8-4-16-4-24 0V18c8-4 16-4 24 0Z"/>
+      </svg>
+      <span>Aquifer Unified Catalog</span>
+    </div>
     <div class="subtitle">Open, structured Bible translation data for developers & engineers</div>
   </header>
   <main>
     <section id="landing">
+      <div class="hero">
+        <!-- decorative background SVG: faint grid + glyphs -->
+        <svg aria-hidden="true" focusable="false" width="100%" height="180" viewBox="0 0 1200 180" preserveAspectRatio="none" style="position:absolute;inset:0;opacity:.20;mix-blend:screen;">
+          <!-- techy grid -->
+          <defs>
+            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+              <path d="M40 0H0V40" fill="none" stroke="#3a4a7a" stroke-width="1"/>
+              <path d="M20 0V40M0 20H40" fill="none" stroke="#2a365c" stroke-width="0.7"/>
+            </pattern>
+          </defs>
+          <rect width="1200" height="180" fill="url(#grid)"/>
+          <!-- scripture motif: faint angled lines like text columns -->
+          <g stroke="#5e77b8" stroke-width="1.2" opacity=".35">
+            <path d="M100 20 l300 0 m-300 10 l260 0 m-260 10 l280 0 m-280 10 l300 0"/>
+            <path d="M800 40 l300 0 m-300 10 l260 0 m-260 10 l280 0 m-280 10 l300 0"/>
+          </g>
+          <!-- subtle circuit arcs -->
+          <g stroke="#7aa6ff" stroke-width="1.4" opacity=".35" fill="none">
+            <path d="M560 20 q40 30 0 60"/>
+            <path d="M620 20 q40 30 0 60"/>
+            <circle cx="560" cy="50" r="3" fill="#7aa6ff"/>
+            <circle cx="620" cy="50" r="3" fill="#7aa6ff"/>
+          </g>
+        </svg>
+        <h2>Browse by repository</h2>
+        <p>Unified, language‑aware datasets. Inline previews for JSON, Markdown, CSV, media & PDFs — no downloads needed.</p>
+        <div class="badges">
+          <span class="badge">💾 CDN + Raw</span>
+          <span class="badge">🔍 Fast preview</span>
+          <span class="badge">🌐 Multi‑language</span>
+          <span class="badge">#️⃣ Deep links</span>
+        </div>
+      </div>
       <div class="grid" id="langGrid"></div>
     </section>
     <section id="files" class="hide">
@@ -111,6 +189,10 @@ function guessLangName(code){
 }
 
 // ===== Utilities =====
+function hashHue(str){ let h=0; for(let i=0;i<str.length;i++){ h=(h*31 + str.charCodeAt(i))%360; } return h; }
+function repoInitials(name){ const s = (name||'').replace(/[^A-Za-z]/g,'').toUpperCase(); return (s[0]||'A') + (s[1]||''); }
+function repoGradient(name){ const h = hashHue(name||'Aquifer'); const h2=(h+38)%360; return `linear-gradient(135deg, hsl(${h} 65% 28%), hsl(${h2} 65% 22%))`; }
+
 const $=id=>document.getElementById(id);
 const ext=p=>(p?.split('.').pop()||'').toLowerCase();
 const hashFor=p=>'#file='+encodeURIComponent(p);
@@ -168,12 +250,30 @@ function renderLanding(manifest){
     const langs = Object.keys(repo.languages||{});
     const count = langs.reduce((n, k)=> n + ((repo.languages[k]||[]).length), 0);
     const displayName = formatRepoName(repo.name);
+    const iconStyle = repoGradient(repo.name);
+    const initials = repoInitials(displayName);
     return `<div class="card">
-      <h3>${displayName}</h3>
-      <div class="muted">${langs.length} language${langs.length===1?'':'s'} • ${count} file${count===1?'':'s'}</div>
-      <div style="margin-top:8px"><button class="btn" data-open-repo="${i}">Browse</button></div>
+      <div class="repo-head">
+        <div class="repo-icon" style="background:${iconStyle}">${initials}</div>
+        <div>
+          <h3>${displayName}</h3>
+          <div class="muted">${repo.name}</div>
+        </div>
+      </div>
+      <div class="pills">
+        <span class="pill">${langs.length} language${langs.length===1?'':'s'}</span>
+        <span class="pill">${count} file${count===1?'':'s'}</span>
+      </div>
+      <div style="margin-top:10px"><button class="btn" data-open-repo="${i}">Browse →</button></div>
     </div>`;
   }).join('');
+
+  // Update subtitle with totals
+  const repoCount = (MANIFEST.repos||[]).length;
+  const fileCount = ALL_FILES.length;
+  const when = manifest.generatedAt ? new Date(manifest.generatedAt).toLocaleString() : '';
+  const sub = document.querySelector('.subtitle');
+  if(sub){ sub.textContent = `Browse ${repoCount} repos • ${fileCount} files • updated ${when}`; }
   $('langGrid').innerHTML = cards || `<div class="muted">No repositories found.</div>`;
   $('landing').classList.remove('hide'); $('files').classList.add('hide');
   $('foot').textContent = `Catalog generated ${manifest.generatedAt || ''}`;
@@ -246,9 +346,9 @@ function renderFiles(filesForLang, lang, preselectPath, repoName){
             <div class='meta'>${cat} • ${f.repo||''} • ${humanBytes(f.size)}</div>
           </div>
           <div class='toolbar'>
-            <button class='btn' data-preview>Preview</button>
-            <button class='btn' data-download>Download</button>
-            <a class='btn' href="${url}" target="_blank" rel="noopener">View</a>
+            <button class='btn' data-preview>🔎 Preview</button>
+            <button class='btn' data-download>⬇️ Download</button>
+            <a class='btn' href="${url}" target="_blank" rel="noopener">↗ View</a>
           </div>
         </div>`;
       }).join('');
