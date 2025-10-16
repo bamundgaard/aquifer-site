@@ -134,9 +134,13 @@ async function previewFile(url,filename){
     if(/\.(md|markdown)$/.test(lower)){ body.innerHTML = marked.parse(text); return; }
     if(/\.(json|geojson)$/.test(lower)){ let pretty=text; try{ pretty=JSON.stringify(JSON.parse(text),null,2);}catch{} body.innerHTML=`<pre>${escapeHtml(pretty)}</pre>`; return; }
     if(/\.(csv|tsv|txt)$/.test(lower)){
-      const lines = text.split(/\r?\n/);
-      const head = lines.slice(0,400).join('\n');
-      body.innerHTML = `<pre>${escapeHtml(head)}${lines.length>400?'\n…(truncated)':''}</pre>`;
+      const lines = text.split(/
+?
+/);
+      const head = lines.slice(0,400).join('
+');
+      body.innerHTML = `<pre>${escapeHtml(head)}${lines.length>400?'
+…(truncated)':''}</pre>`;
       return;
     }
     body.innerHTML=`<pre>${escapeHtml(text)}</pre>`;
@@ -152,13 +156,15 @@ function flattenAllFiles(m){
 }
 
 // ===== Landing (home) =====
-const LANG_LABELS={eng:{name:"English",blurb:"Resources in English"},fra:{name:"French",blurb:"Ressources en français"},hin:{name:"Hindi",blurb:"हिंदी संसाधन"},por:{name:"Portuguese",blurb:"Recursos em Português"},_datasets:{name:"Datasets",blurb:"General (not language-keyed)"}};
+const LANG_LABELS={ _datasets:{name:"Datasets", blurb:"General (not language-keyed)"} };
 function renderLanding(manifest){
   MANIFEST=manifest; ALL_FILES=flattenAllFiles(MANIFEST);
   const byLang={}; for(const f of ALL_FILES){ (byLang[f.lang]??=[]).push(f); }
   const grid=Object.keys(byLang).map(lang=>{
-    const label=LANG_LABELS[lang]?.name||lang; const blurb=LANG_LABELS[lang]?.blurb||""; const count=byLang[lang].length;
-    return`<div class="card"><h3>${label}</h3><div class="muted">${blurb}</div><div class="muted" style="margin-top:4px">${count} file${count===1?'':'s'}</div><div style="margin-top:8px"><button class="btn" data-open="${lang}">Browse</button></div></div>`;
+    const label = (LANG_LABELS[lang]?.name) || guessLangName(lang);
+    const blurb = LANG_LABELS[lang]?.blurb || '';
+    const count = byLang[lang].length;
+    return`<div class=\"card\"><h3>${label}</h3><div class=\"muted\">${blurb}</div><div class=\"muted\" style=\"margin-top:4px\">${count} file${count===1?'':'s'}</div><div style=\"margin-top:8px\"><button class=\"btn\" data-open=\"${lang}\">Browse</button></div></div>`;
   }).join('');
   $('langGrid').innerHTML=grid||`<div class="muted">No files found.</div>`;
   $('landing').classList.remove('hide'); $('files').classList.add('hide');
@@ -172,7 +178,7 @@ function renderLanding(manifest){
 // ===== Files view (chips + search + deep links) — classic row layout with actions on right =====
 function renderFiles(filesForLang, lang, preselectPath){
   $('landing').classList.add('hide'); $('files').classList.remove('hide');
-  $('crumbs').innerHTML=`<a href="#" id="back">Home</a> / ${LANG_LABELS[lang]?.name||lang}`;
+  $('crumbs').innerHTML=`<a href="#" id="back">Home</a> / ${guessLangName(lang)}`;
   $('back').onclick=e=>{ e.preventDefault(); renderLanding(MANIFEST); };
 
   // Chips from first path segment
