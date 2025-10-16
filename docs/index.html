@@ -106,22 +106,45 @@
               <path d="M40 0H0V40" fill="none" stroke="#3a4a7a" stroke-width="1"/>
               <path d="M20 0V40M0 20H40" fill="none" stroke="#2a365c" stroke-width="0.7"/>
             </pattern>
+            <!-- small plus glyph for verse markers -->
+            <symbol id="plus" viewBox="0 0 10 10">
+              <path d="M5 1v8M1 5h8" stroke="#7aa6ff" stroke-width="1.2" stroke-linecap="round"/>
+            </symbol>
           </defs>
           <rect width="1200" height="180" fill="url(#grid)"/>
-          <!-- scripture motif: faint angled lines like text columns -->
-          <g stroke="#5e77b8" stroke-width="1.2" opacity=".35">
-            <path d="M100 20 l300 0 m-300 10 l260 0 m-260 10 l280 0 m-280 10 l300 0"/>
-            <path d="M800 40 l300 0 m-300 10 l260 0 m-260 10 l280 0 m-280 10 l300 0"/>
+
+          <!-- scripture columns (no arcs) -->
+          <g stroke="#5e77b8" stroke-width="1.1" opacity=".35">
+            <path d="M90 18 v110 M120 26 v95 M150 22 v105 M180 30 v90"/>
+            <path d="M760 24 v105 M790 18 v110 M820 28 v95 M850 22 v105"/>
           </g>
-          <!-- subtle circuit arcs -->
-          <g stroke="#7aa6ff" stroke-width="1.4" opacity=".35" fill="none">
-            <path d="M560 20 q40 30 0 60"/>
-            <path d="M620 20 q40 30 0 60"/>
-            <circle cx="560" cy="50" r="3" fill="#7aa6ff"/>
-            <circle cx="620" cy="50" r="3" fill="#7aa6ff"/>
+
+          <!-- chevrons & traces -->
+          <g stroke="#7aa6ff" stroke-width="1.2" opacity=".35" fill="none" stroke-linecap="round">
+            <!-- angled chevrons -->
+            <path d="M1020 34 l-16 12 l16 12"/>
+            <path d="M1060 50 l-16 12 l16 12"/>
+            <!-- single diagonal trace across -->
+            <polyline points="420,28 500,44 570,36 650,58 730,46 820,66"/>
+            <!-- square nodes along the trace -->
+            <rect x="496" y="40" width="4" height="4" fill="#7aa6ff"/>
+            <rect x="646" y="54" width="4" height="4" fill="#7aa6ff"/>
+            <rect x="816" y="62" width="4" height="4" fill="#7aa6ff"/>
           </g>
+
+          <!-- sparse verse markers -->
+          <use href="#plus" x="260" y="36" opacity=".35"/>
+          <use href="#plus" x="300" y="88" opacity=".28"/>
+          <use href="#plus" x="960" y="72" opacity=".32"/>
         </svg>
-        <h2>Browse by resource</h2>
+        <h2>Browse by repository</h2>
+        <p>Unified, language‑aware datasets. Inline previews for JSON, Markdown, CSV, media & PDFs — no downloads needed.</p>
+        <div class="badges">
+          <span class="badge">💾 CDN + Raw</span>
+          <span class="badge">🔍 Fast preview</span>
+          <span class="badge">🌐 Multi‑language</span>
+          <span class="badge">#️⃣ Deep links</span>
+        </div>
       </div>
       <div class="grid" id="langGrid"></div>
     </section>
