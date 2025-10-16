@@ -86,6 +86,33 @@
   </div>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script>
+// ===== Language Name Guessing =====
+const LANGUAGE_NAME_MAP = {
+  en:"English", fr:"French", es:"Spanish", pt:"Portuguese", de:"German",
+  zh:"Chinese", ru:"Russian", ar:"Arabic", hi:"Hindi",
+  eng:"English", fra:"French", fre:"French", spa:"Spanish", por:"Portuguese",
+  deu:"German", ger:"German", zho:"Chinese", rus:"Russian",
+  arb:"Arabic", ara:"Arabic", hin:"Hindi", ben:"Bengali", pan:"Punjabi",
+  urd:"Urdu", fas:"Persian", pes:"Persian", amh:"Amharic", som:"Somali",
+  swa:"Swahili", tpi:"Tok Pisin", vie:"Vietnamese", jpn:"Japanese", kor:"Korean",
+  tur:"Turkish", ind:"Indonesian", msa:"Malay", tha:"Thai", tam:"Tamil",
+  tel:"Telugu", mar:"Marathi", guj:"Gujarati", ita:"Italian", nld:"Dutch",
+  dan:"Danish", nor:"Norwegian", fin:"Finnish", swe:"Swedish", pol:"Polish",
+  ukr:"Ukrainian", _datasets:"Datasets"
+};
+function guessLangName(code){
+  const c = String(code||'').toLowerCase();
+  if (LANGUAGE_NAME_MAP[c]) return LANGUAGE_NAME_MAP[c];
+  const base = c.split(/[-_]/)[0];
+  if (LANGUAGE_NAME_MAP[base]) return LANGUAGE_NAME_MAP[base];
+  try {
+    const dn = new Intl.DisplayNames(['en'], { type: 'language' });
+    const n = dn.of(c) || dn.of(base);
+    if (n && n.toLowerCase() !== c) return n.charAt(0).toUpperCase() + n.slice(1);
+  } catch {}
+  return code;
+}
+
 // ===== Utilities =====
 const $=id=>document.getElementById(id);
 const ext=p=>(p?.split('.').pop()||'').toLowerCase();
@@ -135,9 +162,13 @@ async function previewFile(url,filename){
     if(/\.(md|markdown)$/.test(lower)){ body.innerHTML = marked.parse(text); return; }
     if(/\.(json|geojson)$/.test(lower)){ let pretty=text; try{ pretty=JSON.stringify(JSON.parse(text),null,2);}catch{} body.innerHTML=`<pre>${escapeHtml(pretty)}</pre>`; return; }
     if(/\.(csv|tsv|txt)$/.test(lower)){
-      const lines = text.split(/\r?\n/);
-      const head = lines.slice(0,400).join('\n');
-      body.innerHTML = `<pre>${escapeHtml(head)}${lines.length>400?'\n…(truncated)':''}</pre>`;
+      const lines = text.split(/
+?
+/);
+      const head = lines.slice(0,400).join('
+');
+      body.innerHTML = `<pre>${escapeHtml(head)}${lines.length>400?'
+…(truncated)':''}</pre>`;
       return;
     }
     body.innerHTML=`<pre>${escapeHtml(text)}</pre>`;
