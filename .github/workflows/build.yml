@@ -29,16 +29,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: main
-          ORG_OR_USER: BiblioNexus-Content   # account to crawl
+          ORG_OR_USER: BibleAquifer   # account to crawl
           INCLUDE_FORKS: "false"
           INCLUDE_ARCHIVED: "false"
           PER_PAGE: "100"
           MAX_PAGES: "10"
-          # Optional: extra repos with special rules (e.g., autodiscover datasets)
-          EXTRA_REPOS_JSON: >-
-            [
-              {"name":"BibleAquifer/ACAI","autodiscover":true,"asLang":"_datasets"}
-            ]
           # Optional back-compat list; detection works without this
           LANGUAGE_FOLDERS_JSON: '["eng","fra","hin","por"]'
         run: |
