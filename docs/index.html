@@ -36,7 +36,7 @@
   /* --- polish --- */
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:20px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
-  .card h3{margin:0 0 8px;font-size:18px}
+  .card h3{margin:0 0 8px;font-size:18px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-overflow:ellipsis;word-break:break-word}
   .muted{color:var(--muted)}
   .btn{display:inline-flex;align-items:center;gap:6px;font-size:14px;padding:6px 10px;border:1px solid #34405d;border-radius:8px;background:var(--btn);color:var(--text);text-decoration:none;cursor:pointer}
   .btn:hover{background:var(--btnh)}
@@ -49,7 +49,7 @@
   .list{display:flex;flex-direction:column;gap:8px}
   .row{display:flex;justify-content:space-between;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
   .row-main{display:flex;flex-direction:column;gap:2px}
-  .name{font-weight:600}
+  .name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60vw}
   .meta{font-size:12px;color:var(--muted)}
   .toolbar{display:flex;gap:8px;align-items:center}
   .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:1000}
@@ -137,14 +137,36 @@
           <use href="#plus" x="300" y="88" opacity=".28"/>
           <use href="#plus" x="960" y="72" opacity=".32"/>
         </svg>
-        <h2>Browse by resource</h2>
+        <h2>Browse by repository</h2>
+        <p>Unified, language‑aware datasets. Inline previews for JSON, Markdown, CSV, media & PDFs — no downloads needed.</p>
+        <div class="badges">
+          <span class="badge">💾 CDN + Raw</span>
+          <span class="badge">🔍 Fast preview</span>
+          <span class="badge">🌐 Multi‑language</span>
+          <span class="badge">#️⃣ Deep links</span>
+        </div>
       </div>
+      <div class="searchbar" style="margin-top:6px"><input id="repoSearch" type="search" placeholder="Filter repositories… (⌘/Ctrl+K)" /></div>
       <div class="grid" id="langGrid"></div>
     </section>
     <section id="files" class="hide">
       <div class="crumbs" id="crumbs"></div>
       <div class="files-wrap">
-        <div class="searchbar"><input id="search" type="search" placeholder="Filter files… (⌘/Ctrl+K)" /></div>
+        <div class="searchbar"><input id="search" type="search" placeholder="Filter files… (⌘/Ctrl+K)" />
+          <div id="filters" style="display:flex;gap:8px;flex-wrap:wrap;margin-left:8px">
+            <label class="btn" style="user-select:none"><input id="groupToggle" type="checkbox" style="margin-right:6px">Group formats</label>
+            <button class="btn" data-cat="all">All</button>
+            <button class="btn" data-cat="json">JSON</button>
+            <button class="btn" data-cat="md">MD</button>
+            <button class="btn" data-cat="csv">CSV/TSV</button>
+            <button class="btn" data-cat="images">Images</button>
+            <button class="btn" data-cat="audio">Audio</button>
+            <button class="btn" data-cat="video">Video</button>
+            <button class="btn" data-cat="pdf">PDF</button>
+            <button class="btn" data-cat="html">HTML</button>
+            <button class="btn" data-cat="other">Other</button>
+          </div>
+        </div>
         <div class="list" id="fileList"></div>
       </div>
     </section>
@@ -202,6 +224,21 @@ function hashHue(str){ let h=0; for(let i=0;i<str.length;i++){ h=(h*31 + str.cha
 function repoInitials(name){ const s = (name||'').replace(/[^A-Za-z]/g,'').toUpperCase(); return (s[0]||'A') + (s[1]||''); }
 function repoGradient(name){ const h = hashHue(name||'Aquifer'); const h2=(h+38)%360; return `linear-gradient(135deg, hsl(${h} 65% 28%), hsl(${h2} 65% 22%))`; }
 
+// file helpers
+function baseName(p){ const seg=(p||'').split('/').pop()||''; return seg.replace(/\.[^.]+$/, ''); }
+function extFrom(p){ return (p||'').split('.').pop()?.toLowerCase()||''; }
+function categoryFromExt(e){
+  if(['json','geojson'].includes(e)) return 'json';
+  if(['md','markdown'].includes(e)) return 'md';
+  if(['csv','tsv'].includes(e)) return 'csv';
+  if(['png','jpg','jpeg','gif','webp','svg'].includes(e)) return 'images';
+  if(['mp3','wav','ogg','m4a','flac'].includes(e)) return 'audio';
+  if(['mp4','webm','mov','m4v'].includes(e)) return 'video';
+  if(['pdf'].includes(e)) return 'pdf';
+  if(['html','htm','xhtml'].includes(e)) return 'html';
+  return 'other';
+} 65% 28%), hsl(${h2} 65% 22%))`; }
+
 const $=id=>document.getElementById(id);
 const ext=p=>(p?.split('.').pop()||'').toLowerCase();
 const hashFor=p=>'#file='+encodeURIComponent(p);
@@ -255,48 +292,63 @@ function flattenAllFiles(m){
 // ===== Landing (by repository) =====
 function renderLanding(manifest){
   MANIFEST = manifest; ALL_FILES = flattenAllFiles(MANIFEST);
-  const cards = (MANIFEST.repos||[]).map((repo, i)=>{
-    const langs = Object.keys(repo.languages||{});
-    const count = langs.reduce((n, k)=> n + ((repo.languages[k]||[]).length), 0);
-    const displayName = formatRepoName(repo.name);
-    const iconStyle = repoGradient(repo.name);
-    const initials = repoInitials(displayName);
-    return `<div class="card">
-      <div class="repo-head">
-        <div class="repo-icon" style="background:${iconStyle}">${initials}</div>
-        <div>
-          <h3>${displayName}</h3>
-          <div class="muted">${repo.name}</div>
+
+  // repo filter wiring
+  const inputRepo = $('repoSearch');
+  let rq = '';
+  if (inputRepo){
+    inputRepo.oninput = ()=> { rq = inputRepo.value.trim().toLowerCase(); draw(); };
+    window.addEventListener('keydown',e=>{ if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){ if(document.activeElement!==$('search')){ e.preventDefault(); inputRepo.focus(); inputRepo.select(); } }});
+  }
+
+  function draw(){
+    const repos = (MANIFEST.repos||[]).filter(r=>{
+      if(!rq) return true; const disp = formatRepoName(r.name).toLowerCase(); return disp.includes(rq) || (r.name||'').toLowerCase().includes(rq);
+    });
+
+    const cards = repos.map((repo, i)=>{
+      const langs = Object.keys(repo.languages||{});
+      const count = langs.reduce((n, k)=> n + ((repo.languages[k]||[]).length), 0);
+      const displayName = formatRepoName(repo.name);
+      const iconStyle = repoGradient(repo.name);
+      const initials = repoInitials(displayName);
+      return `<div class="card">
+        <div class="repo-head">
+          <div class="repo-icon" style="background:${iconStyle}">${initials}</div>
+          <div>
+            <h3 title="${repo.name}">${displayName}</h3>
+            <div class="muted">${repo.name}</div>
+          </div>
         </div>
-      </div>
-      <div class="pills">
-        <span class="pill">${langs.length} language${langs.length===1?'':'s'}</span>
-        <span class="pill">${count} file${count===1?'':'s'}</span>
-      </div>
-      <div style="margin-top:10px"><button class="btn" data-open-repo="${i}">Browse →</button></div>
-    </div>`;
-  }).join('');
+        <div class="pills">
+          <span class="pill">${langs.length} language${langs.length===1?'':'s'}</span>
+          <span class="pill">${count} file${count===1?'':'s'}</span>
+        </div>
+        <div style="margin-top:10px"><button class="btn" data-open-repo="${i}">Browse →</button></div>
+      </div>`;
+    }).join('');
 
-  // Update subtitle with totals
-  const repoCount = (MANIFEST.repos||[]).length;
-  const fileCount = ALL_FILES.length;
-  const when = manifest.generatedAt ? new Date(manifest.generatedAt).toLocaleString() : '';
-  const sub = document.querySelector('.subtitle');
-  if(sub){ sub.textContent = `Browse ${repoCount} repos • ${fileCount} files • updated ${when}`; }
-  $('langGrid').innerHTML = cards || `<div class="muted">No repositories found.</div>`;
-  $('landing').classList.remove('hide'); $('files').classList.add('hide');
-  $('foot').textContent = `Catalog generated ${manifest.generatedAt || ''}`;
-  document.querySelectorAll('[data-open-repo]').forEach(b=> b.onclick = ()=> renderRepoLanguages(parseInt(b.dataset.openRepo,10)) );
+    $('langGrid').innerHTML = cards || `<div class="muted">No repositories found.</div>`;
+    document.querySelectorAll('[data-open-repo]').forEach(b=> b.onclick = ()=> renderRepoLanguages(parseInt(b.dataset.openRepo,10)) );
 
-  // Deep link: if #file present, open its repo/lang directly
-  const wanted = getHash();
-  if (wanted){
-    const f = ALL_FILES.find(x=>x.path===wanted);
-    if (f){
-      const repoIdx = (MANIFEST.repos||[]).findIndex(r=> r.name === f.repo);
-      if (repoIdx >= 0) renderFiles((MANIFEST.repos[repoIdx].languages[f.lang]||[]).map(x=>({...x, repo:f.repo, url:chooseUrl(x)})), f.lang, wanted, f.repo);
+    // Update subtitle with totals
+    const repoCount = (MANIFEST.repos||[]).length;
+    const fileCount = ALL_FILES.length;
+    const when = manifest.generatedAt ? new Date(manifest.generatedAt).toLocaleString() : '';
+    const sub = document.querySelector('.subtitle');
+    if(sub){ sub.textContent = `Browse ${repoCount} repos • ${fileCount} files • updated ${when}`; }
+
+    // deep link
+    const wanted = getHash();
+    if (wanted){
+      const f = ALL_FILES.find(x=>x.path===wanted);
+      if (f){
+        const repoIdx = (MANIFEST.repos||[]).findIndex(r=> r.name === f.repo);
+        if (repoIdx >= 0) renderFiles((MANIFEST.repos[repoIdx].languages[f.lang]||[]).map(x=>({...x, repo:f.repo, url:chooseUrl(x)})), f.lang, wanted, f.repo);
+      }
     }
   }
+  draw();
 }
 
 // Show a repo's languages as cards
@@ -337,21 +389,68 @@ function renderFiles(filesForLang, lang, preselectPath, repoName){
   window.addEventListener('keydown',e=>{ if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){ e.preventDefault(); input.focus(); input.select(); }});
 
   const list=$('fileList');
+
+  // filters & grouping state
+  let selectedCat = 'all';
+  const chipBar = document.getElementById('filters');
+  if (chipBar){
+    chipBar.querySelectorAll('[data-cat]').forEach(btn=>{
+      btn.onclick = ()=>{ selectedCat = btn.getAttribute('data-cat'); renderList(); };
+    });
+  }
+  const groupToggle = document.getElementById('groupToggle');
+  const isGrouped = ()=> groupToggle && groupToggle.checked;
+  if (groupToggle){ groupToggle.onchange = ()=> renderList(); groupToggle.checked = true; }
+
   function renderList(){
-    const rows = (filesForLang||[])
+    const filtered = (filesForLang||[])
       .filter(f=> chooseUrl(f))
       .filter(f=>{
-        if(!q) return true;
         const name = (f.path||'').split('/').pop();
-        return (f.path||'').toLowerCase().includes(q) || (name||'').toLowerCase().includes(q) || (f.repo||'').toLowerCase().includes(q);
-      })
-      .map(f=>{
+        const matchText = !q || (f.path||'').toLowerCase().includes(q) || (name||'').toLowerCase().includes(q) || (f.repo||'').toLowerCase().includes(q);
+        if(!matchText) return false;
+        if(selectedCat==='all') return true;
+        const cat = categoryFromExt(extFrom(f.path||''));
+        return cat===selectedCat;
+      });
+
+    let rowsHtml='';
+    if (isGrouped()){
+      const groups = new Map();
+      for(const f of filtered){
+        const b = baseName(f.path||'');
+        if(!groups.has(b)) groups.set(b, []);
+        groups.get(b).push(f);
+      }
+      rowsHtml = Array.from(groups.entries()).map(([b, arr])=>{
+        const rep = arr[0];
+        const cat = deriveCategory(rep);
+        const formats = arr.map(x=> extFrom(x.path||'')).map(e=> e.toUpperCase());
+        const buttons = arr.map(x=>{
+          const e = extFrom(x.path||'');
+          const url = x.url || chooseUrl(x);
+          const label = e.toUpperCase();
+          return `<button class='btn' data-open-ext data-url="${url}" data-name="${(x.path||'').split('/').pop()}">${label}</button>`;
+        }).join('');
+        return `<div class='row' data-group="${encodeURIComponent(b)}">
+          <div class='row-main'>
+            <div class='name' title="${b}">${b}</div>
+            <div class='meta'>${cat} • ${rep.repo||''} • ${formats.join(' • ')}</div>
+          </div>
+          <div class='toolbar'>
+            ${buttons}
+            <button class='btn' data-preview-first>🔎 Preview</button>
+          </div>
+        </div>`;
+      }).join('');
+    } else {
+      rowsHtml = filtered.map(f=>{
         const name = (f.path||'').split('/').pop();
         const cat = deriveCategory(f);
         const url = f.url || chooseUrl(f);
         return `<div class='row' data-path="${encodeURIComponent(f.path)}">
           <div class='row-main'>
-            <div class='name'>${name}</div>
+            <div class='name' title="${name}">${name}</div>
             <div class='meta'>${cat} • ${f.repo||''} • ${humanBytes(f.size)}</div>
           </div>
           <div class='toolbar'>
@@ -361,22 +460,41 @@ function renderFiles(filesForLang, lang, preselectPath, repoName){
           </div>
         </div>`;
       }).join('');
+    }
 
-    list.innerHTML = rows || `<div class='muted'>No results.</div>`;
+    list.innerHTML = rowsHtml || `<div class='muted'>No results.</div>`;
 
-    // Wire actions per row
-    list.querySelectorAll('.row').forEach(row=>{
-      const p = decodeURIComponent(row.getAttribute('data-path'));
-      const f = (filesForLang||[]).find(x=>x.path===p);
-      if(!f) return;
-      const url = f.url || chooseUrl(f);
-      const name = (f.path||'').split('/').pop();
-      row.querySelector('[data-preview]').onclick = ()=>{ history.replaceState(null,'',hashFor(p)); previewFile(url, name); };
-      row.querySelector('[data-download]').onclick = ()=> forceDownload(url, name);
-    });
+    // wiring actions
+    if (isGrouped()){
+      list.querySelectorAll('[data-open-ext]').forEach(btn=>{
+        const url = btn.getAttribute('data-url');
+        const name = btn.getAttribute('data-name');
+        btn.onclick = ()=> previewFile(url, name);
+      });
+      list.querySelectorAll('[data-preview-first]').forEach(btn=>{
+        btn.onclick = ()=>{
+          const row = btn.closest('.row');
+          const first = row && row.querySelector('[data-open-ext]');
+          if(first){ first.click(); }
+        };
+      });
+    } else {
+      list.querySelectorAll('.row').forEach(row=>{
+        const p = decodeURIComponent(row.getAttribute('data-path'));
+        const f = (filesForLang||[]).find(x=>x.path===p);
+        if(!f) return;
+        const url = f.url || chooseUrl(f);
+        const name = (f.path||'').split('/').pop();
+        row.querySelector('[data-preview]').onclick = ()=>{ history.replaceState(null,'',hashFor(p)); previewFile(url, name); };
+        row.querySelector('[data-download]').onclick = ()=> forceDownload(url, name);
+      });
+    }
 
-    // Handle deep link if provided
-    if(preselectPath){ const sel = list.querySelector(`.row[data-path="${encodeURIComponent(preselectPath)}"]`); if(sel){ sel.scrollIntoView({block:'center'}); sel.querySelector('[data-preview]').click(); } preselectPath=null; }
+    if(preselectPath && !isGrouped()){
+      const sel = list.querySelector(`.row[data-path="${encodeURIComponent(preselectPath)}"]`);
+      if(sel){ sel.scrollIntoView({block:'center'}); sel.querySelector('[data-preview]').click(); }
+      preselectPath=null;
+    }
   }
 
   renderList();
