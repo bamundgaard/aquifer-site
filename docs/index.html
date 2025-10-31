@@ -1,60 +1,143 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Aquifer — Home</title>
-<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-<style>
-  :root{
-    --bg:#0b1220; --card:#0f1730; --line:#1c2438; --muted:#9aa3c7; --text:#e6e8ee;
-    --accent:#7aa6ff; --btn:#121a33; --btnh:#182247;
-    font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial;
-  }
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--text)}
-  a{color:inherit;text-decoration:none}
-  header{padding:16px 24px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:20;display:flex;align-items:center;justify-content:space-between}
-  .brand{display:flex;align-items:center;gap:8px;font-size:22px;font-weight:700;color:var(--accent)}
-  .wrap{max-width:900px;margin:0 auto;padding:24px}
-  .hero{border:1px solid var(--line);border-radius:16px;padding:20px;background:linear-gradient(145deg,#0e1630,#0b1326)}
-  .hero h1{margin:0 0 8px}
-  .muted{color:var(--muted)}
-  .cta{display:inline-flex;gap:8px;align-items:center;margin-top:14px;padding:10px 14px;border:1px solid #34405d;border-radius:10px;background:var(--btn);cursor:pointer}
-  .cta:hover{background:var(--btnh)}
-  .card{margin-top:20px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
-  .card h2{margin:0 0 8px;font-size:18px}
-  .md{line-height:1.6}
-  .md pre{white-space:pre-wrap;word-break:break-word;background:#0b1220;border:1px solid #1c2438;border-radius:8px;padding:12px;overflow:auto}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bible Aquifer — Home</title>
+  <style>
+    :root{
+      --bg:#0b1220; --card:#0f1730; --line:#1c2438; --muted:#9aa3c7; --text:#e6e8ee;
+      --accent:#7aa6ff; --btn:#121a33; --btnh:#182247;
+      font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text)}
+    a{color:inherit}
+    header{padding:16px 24px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:20;display:flex;align-items:center;justify-content:space-between}
+    .brand{display:flex;align-items:center;gap:8px;font-size:22px;font-weight:700;color:var(--accent)}
+    .logo{width:28px;height:28px}
+    .logo .fill{fill:#7aa6ff;opacity:.12}
+    .logo .stroke{stroke:#7aa6ff;opacity:.85}
+    .logo .node{fill:#7aa6ff;opacity:.9}
+    .nav{display:flex;gap:10px}
+    .btn{display:inline-flex;align-items:center;gap:6px;font-size:14px;padding:8px 12px;border:1px solid #34405d;border-radius:10px;background:var(--btn);color:var(--text);text-decoration:none;cursor:pointer}
+    .btn:hover{background:var(--btnh)}
+
+    main{max-width:960px;margin:0 auto;padding:24px}
+    .hero{position:relative;overflow:hidden;margin:16px 0 22px;padding:18px;border:1px solid var(--line);border-radius:16px;
+      background: radial-gradient(1200px 400px at 10% -10%, rgba(122,166,255,.18), rgba(122,166,255,0)) ,
+                  linear-gradient(145deg,#0e1630,#0b1326);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.02), 0 8px 30px rgba(0,0,0,.25);
+    }
+    .hero h1{margin:0 0 6px;font-size:26px;letter-spacing:.2px}
+    .hero p{margin:0;color:var(--muted)}
+    .badge{display:inline-block;margin-top:10px;font-size:12px;border:1px solid #2a3246;background:#111933;padding:4px 8px;border-radius:999px;color:#cfd6ee}
+
+    .content{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-top:18px}
+    .content :where(h1,h2,h3){margin:.8em 0 .4em}
+    .content p{line-height:1.55;color:#dfe3f3}
+    .content code{background:#0b1220;border:1px solid #1c2438;border-radius:6px;padding:0 .3em}
+    .content pre{background:#0b1220;border:1px solid #1c2438;border-radius:10px;padding:12px;overflow:auto}
+    .content table{border-collapse:collapse;width:100%}
+    .content th,.content td{border:1px solid #1c2438;padding:6px 8px}
+
+    .cta{margin-top:22px;display:flex;gap:10px;flex-wrap:wrap}
+    .muted{color:var(--muted)}
+    .err{background:#331;color:#f88;border-bottom:1px solid #633;padding:10px 14px;position:sticky;top:0;z-index:9999;font-family:ui-sans-serif,system-ui}
+  </style>
 </head>
 <body>
   <header>
-    <div class="brand">Aquifer</div>
-    <nav><a class="cta" href="./catalog.html">Browse Catalog →</a></nav>
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+        <path class="stroke" d="M8 18c8-4 16-4 24 0m24 0c-8-4-16-4-24 0M8 18v28c8-4 16-4 24 0m24 0V18" fill="none" stroke-width="2"/>
+        <path class="stroke" d="M32 46V18" fill="none" stroke-width="2"/>
+        <circle class="node" cx="14" cy="26" r="2"/>
+        <circle class="node" cx="12" cy="32" r="2"/>
+        <circle class="node" cx="16" cy="38" r="2"/>
+        <circle class="node" cx="50" cy="26" r="2"/>
+        <circle class="node" cx="52" cy="32" r="2"/>
+        <circle class="node" cx="48" cy="38" r="2"/>
+        <path class="fill" d="M8 18v28c8-4 16-4 24 0V18c-8-4 16-4 24 0Z"/>
+        <path class="fill" d="M56 18v28c-8-4-16-4-24 0V18c8-4 16-4 24 0Z"/>
+      </svg>
+      <span>Bible Aquifer</span>
+    </div>
+    <nav class="nav">
+      <a class="btn" href="./catalog.html">Open Unified Catalog →</a>
+      <a class="btn" href="https://github.com/BibleAquifer" target="_blank" rel="noopener">GitHub Org ↗</a>
+    </nav>
   </header>
 
-  <main class="wrap">
+  <main>
     <section class="hero">
-      <h1>Aquifer</h1>
-      <p class="muted">Open, structured Bible translation data & tooling for developers, linguists, and ministries.</p>
-      <a class="cta" href="./catalog.html">Open the Unified Catalog →</a>
+      <h1>Open resources for Bible translation</h1>
+      <p class="muted">Openly licensed, structured, and developer‑friendly. Browse datasets, preview inline, and fetch via CDN.</p>
+      <span class="badge">CC0 / CC BY / CC BY‑SA</span>
     </section>
 
-    <section class="card">
-      <h2>About the Aquifer</h2>
-      <div id="readme" class="md">Loading…</div>
+    <section id="readme" class="content">
+      <p class="muted">Loading project overview…</p>
     </section>
+
+    <div class="cta">
+      <a class="btn" href="./catalog.html">Explore the Unified Catalog →</a>
+      <a class="btn" href="https://github.com/BibleAquifer" target="_blank" rel="noopener">Visit the GitHub Organization ↗</a>
+    </div>
   </main>
 
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-<script>
-  // Pull the README from the Aquifer repo (adjust if your README lives elsewhere)
-  const README_URL = 'https://github.com/BibleAquifer/.github/edit/main/profile/README.md';
-  fetch(README_URL, {cache:'no-store'})
-    .then(r => r.ok ? r.text() : Promise.reject(new Error('README not found')))
-    .then(md => { document.getElementById('readme').innerHTML = marked.parse(md); })
-    .catch(e => { document.getElementById('readme').textContent = 'Could not load README: ' + e.message; });
-</script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script>
+    // --- README loader (org profile first, repo fallback) ---
+    const readmeEl = document.getElementById('readme');
+    const README_CANDIDATES = [
+      // Org profile README (preferred)
+      'https://raw.githubusercontent.com/BibleAquifer/.github/main/profile/README.md',
+      'https://cdn.jsdelivr.net/gh/BibleAquifer/.github@main/profile/README.md',
+      'https://rawcdn.githack.com/BibleAquifer/.github/main/profile/README.md',
+      // Repo README fallback
+      'https://raw.githubusercontent.com/BibleAquifer/aquifer/main/README.md',
+      'https://cdn.jsdelivr.net/gh/BibleAquifer/aquifer@main/README.md',
+      'https://rawcdn.githack.com/BibleAquifer/aquifer/main/README.md'
+    ];
+
+    async function fetchWithRetry(url, tries = 2) {
+      let wait = 400;
+      for (let i = 0; i < tries; i++) {
+        try {
+          const r = await fetch(url + (url.includes('?') ? '' : `?cb=${Date.now()}`), { cache: 'no-store' });
+          if (r.ok) return await r.text();
+          throw new Error(`HTTP ${r.status}`);
+        } catch (e) {
+          if (i === tries - 1) throw e;
+          await new Promise(res => setTimeout(res, wait));
+          wait = Math.min(wait * 1.7, 2000);
+        }
+      }
+    }
+
+    (async () => {
+      for (const url of README_CANDIDATES) {
+        try {
+          const md = await fetchWithRetry(url, 2);
+          readmeEl.innerHTML = (window.marked ? marked.parse(md) : `<pre>${md}</pre>`);
+          return;
+        } catch (_) { /* try next */ }
+      }
+      readmeEl.innerHTML = `
+        <div style="color:#f88">Could not load README.</div>
+        <p class="muted">Tried: .github/profile and aquifer repo (raw, jsDelivr, githack).</p>
+        <p><a href="https://github.com/BibleAquifer" target="_blank" rel="noopener">Open the organization page ↗</a></p>
+      `;
+    })();
+
+    // Show script errors so we never get a silent blank page
+    window.addEventListener('error',(e)=>{
+      const div=document.createElement('div');
+      div.className='err';
+      div.textContent=`Script error: ${e.message}`;
+      document.body.prepend(div);
+    });
+  </script>
 </body>
 </html>
