@@ -190,14 +190,19 @@
 
 <script>
 // Home button
-const homeBtn=document.getElementById('homeButton');
-if(homeBtn){
-  homeBtn.addEventListener('click',()=>{
-    window.location.href = './index.html';
+const homeBtn = document.getElementById('homeButton');
+if (homeBtn) {
+  homeBtn.addEventListener('click', () => {
+    try { hidePreview(); } catch {}
+    location.hash = '';
+    if (window.MANIFEST) {
+      renderLanding(MANIFEST);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      loadManifest().then(renderLanding);
+    }
   });
 }
-
-});}location.hash='';});}
 
 // ===== Language Name Guessing =====
 const LANGUAGE_NAME_MAP={
@@ -233,7 +238,18 @@ function repoGradient(name){const h=hashHue(name||'Aquifer');const h2=(h+38)%360
 function humanBytes(n){if(n==null) return '';const u=['B','KB','MB','GB'];const i=Math.floor(Math.log(n)/Math.log(1024));return `${(n/Math.pow(1024,i)).toFixed(1)} ${u[i]}`;}
 
 // ===== Manifest loader =====
-async function loadManifest(){const r=await fetch('./data/manifest.json',{cache:'no-store'});if(!r.ok) throw new Error('manifest missing');return r.json();}
+async function loadManifest(maxRetries=8){
+  const delay = (ms)=>new Promise(r=>setTimeout(r, ms));
+  let attempt = 0, wait = 400; // ms
+  while (true){
+    const r = await fetch('./data/manifest.json', { cache: 'no-store' });
+    if (r.ok) return r.json();
+    attempt++;
+    if (attempt > maxRetries) throw new Error('manifest missing');
+    await delay(wait);
+    wait = Math.min(wait * 1.7, 4000);
+  }
+});if(!r.ok) throw new Error('manifest missing');return r.json();}
 
 // ===== Preview Modal =====
 function showPreview(){ $('previewBackdrop').style.display='flex'; }
@@ -439,7 +455,7 @@ window.addEventListener('hashchange',()=>{
   const wanted=getHash();
   if(!wanted){hidePreview();return;}
   if($('files').classList.contains('hide')){
-    if(!MANIFEST) return;x
+    if(!MANIFEST) return;
     const all=flattenAllFiles(MANIFEST);
     const f=all.find(x=>x.path===wanted); if(!f) return;
     const repo=MANIFEST.repos.find(r=>r.name===f.repo); if(!repo) return;
