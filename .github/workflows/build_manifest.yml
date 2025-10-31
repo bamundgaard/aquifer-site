@@ -44,7 +44,7 @@ jobs:
 
       - name: Generate manifest from account repos
         env:
-       GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           node - <<'NODE'
           const fs = require('fs');
