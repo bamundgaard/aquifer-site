@@ -2,13 +2,8 @@ name: Build unified catalog manifest
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
-    paths:
-      - 'docs/**'
-      - '.github/workflows/build.yml'
   schedule:
-    - cron: '0 * * * *'  # hourly
+    - cron: '0 * * * *'  # hourly; adjust as needed
 
 permissions:
   contents: write
@@ -19,6 +14,16 @@ jobs:
     steps:
       - name: Checkout site
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # allow rebase
+
+      - name: Sync with remote main (avoid non-fast-forward)
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          # Rebase on latest remote; if conflicts, reset to remote to keep pipeline green
+          git rebase origin/main || (git rebase --abort && git reset --hard origin/main)
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -29,12 +34,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: main
-          ORG_OR_USER: BibleAquifer   # account to crawl
-          INCLUDE_FORKS: "false"
-          INCLUDE_ARCHIVED: "false"
-          PER_PAGE: "100"
-          MAX_PAGES: "10"
-          # Optional back-compat list; detection works without this
+          REPOS_JSON: >-
+            ["bamundgaard/test-2025-10-13-BiblicaStudyNotesKeyTerms",
+             {"name":"BibleAquifer/ACAI","autodiscover":true,"asLang":"_datasets"}]
           LANGUAGE_FOLDERS_JSON: '["eng","fra","hin","por"]'
         run: |
           node - <<'NODE'
@@ -43,21 +45,15 @@ jobs:
 
           const GH_TOKEN = process.env.GH_TOKEN;
           const BRANCH = process.env.BRANCH || 'main';
-          const ORG_OR_USER = process.env.ORG_OR_USER;
-          const INCLUDE_FORKS = (process.env.INCLUDE_FORKS || 'false').toLowerCase() === 'true';
-          const INCLUDE_ARCHIVED = (process.env.INCLUDE_ARCHIVED || 'false').toLowerCase() === 'true';
-          const PER_PAGE = Math.max(1, parseInt(process.env.PER_PAGE || '100', 10));
-          const MAX_PAGES = Math.max(1, parseInt(process.env.MAX_PAGES || '10', 10));
-          const EXTRA_REPOS = JSON.parse(process.env.EXTRA_REPOS_JSON || '[]');
-          const LANGUAGE_FOLDERS = new Set(JSON.parse(process.env.LANGUAGE_FOLDERS_JSON || '[]')); // optional
+          const RAW = JSON.parse(process.env.REPOS_JSON);
+          const LANGUAGE_FOLDERS = JSON.parse(process.env.LANGUAGE_FOLDERS_JSON);
+          const REPOS = RAW.map(r => (typeof r === 'string' ? { name: r } : r));
 
           const IGNORE = [
             /^README(\.md|\.txt)?$/i, /^LICENSE(\.md|\.txt)?$/i,
             /^\.github$/i, /^\.gitignore$/i, /^\.gitattributes$/i, /^\.DS_Store$/i,
             /^index(\.md|\.html)?$/i
           ];
-
-          const LANG_DIR_RE = /^(?:[a-z]{2,4})(?:[-_][a-z0-9]{2,8})?$/i; // en, eng, por, en-US, etc.
 
           function gh(path){
             const opts = {
@@ -81,22 +77,6 @@ jobs:
                 });
               }).on('error', reject);
             });
-          }
-
-          async function listAllReposForAccount(account){
-            const out = [];
-            async function pull(base){
-              for (let page=1; page<=MAX_PAGES; page++){
-                const path = `${base}?per_page=${PER_PAGE}&page=${page}`;
-                const batch = await gh(path);
-                if (!Array.isArray(batch) || batch.length === 0) break;
-                out.push(...batch);
-                if (batch.length < PER_PAGE) break;
-              }
-            }
-            try { await pull(`/orgs/${account}/repos`); }
-            catch { await pull(`/users/${account}/repos`); }
-            return out;
           }
 
           function isIgnored(name){ return IGNORE.some(re => re.test(name)); }
@@ -131,64 +111,39 @@ jobs:
             return acc;
           }
 
-          function isLanguageDirName(name){
-            // Accept configured names OR regex match for plausible language codes
-            return LANGUAGE_FOLDERS.has(name) || LANG_DIR_RE.test(name);
-          }
-
           (async ()=>{
-            // 1) Expand account into repos
-            const reposFromAccount = await listAllReposForAccount(ORG_OR_USER);
-            const baseRepos = reposFromAccount
-              .filter(r => (INCLUDE_FORKS || !r.fork))
-              .filter(r => (INCLUDE_ARCHIVED || !r.archived))
-              .map(r => ({ name: r.full_name }));
-
-            // 2) Merge with any EXTRA_REPOS entries
-            const REPOS = [...baseRepos, ...EXTRA_REPOS];
-
-            // 3) Build manifest
             const manifest = { generatedAt: new Date().toISOString(), repos: [] };
 
             for (const cfg of REPOS){
               const [owner, repo] = cfg.name.split('/');
 
+              // AUTODISCOVER: pull all top-level folders as dataset categories
               if (cfg.autodiscover){
-                try {
-                  const root = await listDir(owner, repo, '');
-                  const topDirs = root.filter(x => x.type === 'dir' && !isIgnored(x.name)).map(x => x.name);
-                  const languages = { [cfg.asLang || '_datasets']: [] };
-                  for (const dir of topDirs){
-                    const files = await walk(owner, repo, dir);
-                    languages[cfg.asLang || '_datasets'].push(...files);
-                  }
-                  manifest.repos.push({ name: cfg.name, branch: BRANCH, languages });
-                } catch (e){
-                  console.warn(`WARN autodiscover failed for ${cfg.name}: ${e.message}`);
+                const root = await listDir(owner, repo, '');
+                const topDirs = root.filter(x => x.type === 'dir' && !isIgnored(x.name)).map(x => x.name);
+                const languages = { [cfg.asLang || '_datasets']: [] };
+                for (const dir of topDirs){
+                  const files = await walk(owner, repo, dir);
+                  languages[cfg.asLang || '_datasets'].push(...files); // keep "<dir>/..." in path
                 }
+                manifest.repos.push({ name: cfg.name, branch: BRANCH, languages });
                 continue;
               }
 
-              // Standard: detect language folders dynamically
-              try {
-                const root = await listDir(owner, repo, '');
-                const languages = {};
-                for (const item of root){
-                  if (item.type === 'dir' && isLanguageDirName(item.name)) {
-                    languages[item.name] = await walk(owner, repo, item.name);
-                  }
+              // Standard: language folders at repo root
+              const root = await listDir(owner, repo, '');
+              const languages = {};
+              for (const item of root){
+                if (item.type === 'dir' && LANGUAGE_FOLDERS.includes(item.name)) {
+                  languages[item.name] = await walk(owner, repo, item.name);
                 }
-                if (Object.keys(languages).length){
-                  manifest.repos.push({ name: cfg.name, branch: BRANCH, languages });
-                }
-              } catch (e){
-                console.warn(`WARN listing failed for ${cfg.name}: ${e.message}`);
               }
+              manifest.repos.push({ name: cfg.name, branch: BRANCH, languages });
             }
 
             fs.mkdirSync('docs/data', { recursive: true });
             fs.writeFileSync('docs/data/manifest.json', JSON.stringify(manifest, null, 2));
-            console.log('✅ wrote docs/data/manifest.json with', manifest.repos.length, 'repos');
+            console.log('✅ wrote docs/data/manifest.json');
           })().catch(err=>{ console.error(err); process.exit(1); });
           NODE
 
