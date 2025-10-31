@@ -1,4 +1,4 @@
-name: Build unified catalog manifest
+name: Build unified catalog manifest (BibleAquifer org)
 
 on:
   workflow_dispatch:
@@ -11,6 +11,11 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      ORG: BibleAquifer
+      INCLUDE_FORKS: "false"      # set "true" to include forks
+      INCLUDE_ARCHIVED: "false"   # set "true" to include archived repos
+      MAX_REPOS: "1000"           # safety cap
     steps:
       - name: Checkout site
         uses: actions/checkout@v4
@@ -29,32 +34,27 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Generate manifest
+      - name: Generate manifest from all repos in org
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH: main
-          # Add/adjust repos here
-          REPOS_JSON: >-
-            ["bamundgaard/test-2025-10-13-BiblicaStudyNotesKeyTerms",
-             {"name":"BibleAquifer/ACAI","autodiscover":true,"asLang":"_datasets"}]
-          # If you add language folders later, you can expand this
-          LANGUAGE_FOLDERS_JSON: '["eng","fra","hin","por"]'
         run: |
           node - <<'NODE'
           const fs = require('fs');
           const https = require('https');
 
           const GH_TOKEN = process.env.GH_TOKEN;
-          const BRANCH = process.env.BRANCH || 'main';
-          const RAW = JSON.parse(process.env.REPOS_JSON);
-          const LANGUAGE_FOLDERS = JSON.parse(process.env.LANGUAGE_FOLDERS_JSON);
-          const REPOS = RAW.map(r => (typeof r === 'string' ? { name: r } : r));
+          const ORG = process.env.ORG || 'BibleAquifer';
+          const INCLUDE_FORKS = (process.env.INCLUDE_FORKS||'false').toLowerCase()==='true';
+          const INCLUDE_ARCHIVED = (process.env.INCLUDE_ARCHIVED||'false').toLowerCase()==='true';
+          const MAX_REPOS = parseInt(process.env.MAX_REPOS||'1000',10);
 
           const IGNORE = [
             /^README(\.md|\.txt)?$/i, /^LICENSE(\.md|\.txt)?$/i,
             /^\.github$/i, /^\.gitignore$/i, /^\.gitattributes$/i, /^\.DS_Store$/i,
             /^index(\.md|\.html)?$/i
           ];
+
+          function isIgnored(name){ return IGNORE.some(re => re.test(name)); }
 
           function gh(path){
             const opts = {
@@ -71,7 +71,7 @@ jobs:
                 let data=''; res.on('data', d=>data+=d);
                 res.on('end', ()=>{
                   if(res.statusCode>=200 && res.statusCode<300){
-                    try { resolve(JSON.parse(data)); } catch(e){ reject(e); }
+                    try { resolve({json: JSON.parse(data), headers: res.headers}); } catch(e){ reject(e); }
                   } else {
                     reject(new Error(`GitHub ${res.statusCode}: ${data}`));
                   }
@@ -80,18 +80,32 @@ jobs:
             });
           }
 
-          function isIgnored(name){ return IGNORE.some(re => re.test(name)); }
-
-          async function listDir(owner, repo, path=''){
-            const enc = path ? `/${encodeURIComponent(path).replace(/%2F/g,'/')}` : '';
-            const out = await gh(`/repos/${owner}/${repo}/contents${enc}?ref=${BRANCH}`);
-            return Array.isArray(out) ? out : [out];
+          async function listOrgRepos(org){
+            const all = [];
+            let page = 1;
+            while (true){
+              const {json} = await gh(`/orgs/${org}/repos?per_page=100&page=${page}&type=public&sort=full_name`);
+              if (!Array.isArray(json) || json.length===0) break;
+              all.push(...json);
+              if (json.length < 100) break;
+              page++;
+              if (all.length >= MAX_REPOS) break;
+            }
+            return all;
           }
 
-          async function walk(owner, repo, basePath){
+          async function listDir(owner, repo, path='', ref){
+            const enc = path ? `/${encodeURIComponent(path).replace(/%2F/g,'/')}` : '';
+            const {json} = await gh(`/repos/${owner}/${repo}/contents${enc}?ref=${encodeURIComponent(ref)}`);
+            return Array.isArray(json) ? json : [json];
+          }
+
+          async function walk(owner, repo, basePath, ref){
             const acc = [];
             async function recur(p){
-              const items = await listDir(owner, repo, p);
+              let items;
+              try { items = await listDir(owner, repo, p, ref); }
+              catch(e){ return; }
               for (const it of items){
                 if (it.type === 'dir') {
                   if (isIgnored(it.name)) continue;
@@ -102,8 +116,8 @@ jobs:
                     path: it.path,
                     size: it.size ?? null,
                     sha: it.sha ?? null,
-                    downloadRaw: `https://raw.githubusercontent.com/${owner}/${repo}/${BRANCH}/${it.path}`,
-                    downloadCdn: `https://cdn.jsdelivr.net/gh/${owner}/${repo}@${BRANCH}/${it.path}`
+                    downloadRaw: `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${it.path}`,
+                    downloadCdn: `https://cdn.jsdelivr.net/gh/${owner}/${repo}@${ref}/${it.path}`
                   });
                 }
               }
@@ -112,44 +126,84 @@ jobs:
             return acc;
           }
 
+          function looksLikeLangFolder(name){
+            if (!name) return false;
+            // common: 2-3 letter codes with optional subtags (e.g., en, eng, fr, zh-Hans)
+            return /^[a-z]{2,3}([-_][a-z0-9]+)?$/i.test(name);
+          }
+
           (async ()=>{
-            const manifest = { generatedAt: new Date().toISOString(), repos: [] };
+            const reposRaw = await listOrgRepos(ORG);
+            const repos = reposRaw
+              .filter(r => (INCLUDE_FORKS || !r.fork))
+              .filter(r => (INCLUDE_ARCHIVED || !r.archived))
+              .slice(0, MAX_REPOS);
 
-            for (const cfg of REPOS){
-              const [owner, repo] = cfg.name.split('/');
+            const manifest = { generatedAt: new Date().toISOString(), org: ORG, repos: [] };
 
-              if (cfg.autodiscover){
-                const root = await listDir(owner, repo, '');
-                const topDirs = root.filter(x => x.type === 'dir' && !isIgnored(x.name)).map(x => x.name);
-                const languages = { [cfg.asLang || '_datasets']: [] };
-                for (const dir of topDirs){
-                  const files = await walk(owner, repo, dir);
-                  languages[cfg.asLang || '_datasets'].push(...files);
-                }
-                manifest.repos.push({ name: cfg.name, branch: BRANCH, languages });
-                continue;
-              }
+            for (const r of repos){
+              const owner = r.owner.login;
+              const repo = r.name;
+              const ref = r.default_branch || 'main';
 
-              const root = await listDir(owner, repo, '');
+              let root = [];
+              try { root = await listDir(owner, repo, '', ref); } catch(e){ continue; }
+
               const languages = {};
-              for (const item of root){
-                if (item.type === 'dir' && LANGUAGE_FOLDERS.includes(item.name)) {
-                  languages[item.name] = await walk(owner, repo, item.name);
+              // discover language folders at root
+              const langDirs = root.filter(x => x.type==='dir' && !isIgnored(x.name) && looksLikeLangFolder(x.name)).map(x=>x.name);
+              for (const ld of langDirs){
+                try {
+                  languages[ld] = await walk(owner, repo, ld, ref);
+                } catch(_) {}
+              }
+
+              // also include non-language top-level dirs as _datasets (categories)
+              const datasetDirs = root
+                .filter(x => x.type==='dir' && !isIgnored(x.name) && !langDirs.includes(x.name))
+                .map(x=>x.name);
+
+              if (datasetDirs.length){
+                languages['_datasets'] = languages['_datasets'] || [];
+                for (const dd of datasetDirs){
+                  try {
+                    const files = await walk(owner, repo, dd, ref);
+                    languages['_datasets'].push(...files); // keep "<dir>/..." in path
+                  } catch(_) {}
                 }
               }
-              manifest.repos.push({ name: cfg.name, branch: BRANCH, languages });
+
+              // if nothing found yet, try files at root
+              if (!Object.keys(languages).length){
+                const topFiles = root
+                  .filter(x => x.type==='file' && !isIgnored(x.name))
+                  .map(x => ({
+                    path: x.path,
+                    size: x.size ?? null,
+                    sha: x.sha ?? null,
+                    downloadRaw: `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${x.path}`,
+                    downloadCdn: `https://cdn.jsdelivr.net/gh/${owner}/${repo}@${ref}/${x.path}`
+                  }));
+                if (topFiles.length) languages['_datasets'] = topFiles;
+              }
+
+              // only add repos that actually contributed something
+              const total = Object.values(languages).reduce((n, arr)=> n + (arr?.length||0), 0);
+              if (total > 0){
+                manifest.repos.push({ name: `${owner}/${repo}`, branch: ref, languages });
+              }
             }
 
             fs.mkdirSync('docs/data', { recursive: true });
             fs.writeFileSync('docs/data/manifest.json', JSON.stringify(manifest, null, 2));
-            console.log('✅ wrote docs/data/manifest.json');
+            console.log(`✅ wrote docs/data/manifest.json with ${manifest.repos.length} repos from org ${ORG}`);
           })().catch(err=>{ console.error(err); process.exit(1); });
           NODE
 
-      - name: Auto-commit manifest
+      - name: Commit manifest
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "Update unified catalog manifest [skip ci]"
           file_pattern: docs/data/manifest.json
-          # Optional safety valve if your branch moves during the run:
+          # Optionally add this if you still hit non-fast-forward races:
           # push_options: '--force-with-lease'
