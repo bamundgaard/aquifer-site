@@ -12,15 +12,17 @@
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text)}
-  a{color:inherit}
-  header{padding:24px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:10}
-  .brand{font-size:22px;font-weight:700;color:var(--accent);display:inline-flex;align-items:center;gap:8px}
+  a{color:inherit;text-decoration:none}
+  header{padding:16px 24px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:20;display:flex;align-items:center;justify-content:space-between}
+  .brand{display:flex;align-items:center;gap:8px;font-size:22px;font-weight:700;color:var(--accent)}
   .logo{width:28px;height:28px;display:inline-block}
   .logo path,.logo circle,.logo rect{stroke:#7aa6ff}
   .logo .fill{fill:#7aa6ff;opacity:.12}
   .logo .stroke{stroke:#7aa6ff;opacity:.85}
   .logo .node{fill:#7aa6ff;opacity:.9}
-  .subtitle{color:var(--muted);margin-top:4px}
+  .home-btn{font-size:14px;padding:6px 10px;border:1px solid #34405d;border-radius:8px;background:var(--btn);color:var(--text);cursor:pointer}
+  .home-btn:hover{background:var(--btnh)}
+  .subtitle{color:var(--muted);margin:4px 24px 0}
   main{max-width:1200px;margin:0 auto;padding:16px 24px 24px}
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:20px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;position:relative;overflow:hidden;transition:transform .18s ease,box-shadow .18s ease}
@@ -79,11 +81,9 @@
       <svg class="logo" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
         <path class="stroke" d="M8 18c8-4 16-4 24 0m24 0c-8-4-16-4-24 0M8 18v28c8-4 16-4 24 0m24 0V18" fill="none" stroke-width="2"/>
         <path class="stroke" d="M32 46V18" fill="none" stroke-width="2"/>
-        <path class="stroke" d="M20 26h-6m6 6h-8m8 6h-4" fill="none" stroke-width="2" stroke-linecap="round"/>
         <circle class="node" cx="14" cy="26" r="2"/>
         <circle class="node" cx="12" cy="32" r="2"/>
         <circle class="node" cx="16" cy="38" r="2"/>
-        <path class="stroke" d="M44 26h6m-6 6h8m-6 6h4" fill="none" stroke-width="2" stroke-linecap="round"/>
         <circle class="node" cx="50" cy="26" r="2"/>
         <circle class="node" cx="52" cy="32" r="2"/>
         <circle class="node" cx="48" cy="38" r="2"/>
@@ -92,13 +92,14 @@
       </svg>
       <span>Aquifer Unified Catalog</span>
     </div>
-    <div class="subtitle">Open, structured Bible translation data for developers & engineers</div>
+    <button id="homeButton" class="home-btn">🏠 Home</button>
   </header>
+  <div class="subtitle">Open, structured Bible translation data for developers & engineers</div>
 
   <main>
     <section id="landing">
       <div class="hero">
-        <!-- non-suggestive techy scripture bg -->
+        <!-- techy scripture bg -->
         <svg aria-hidden="true" focusable="false" width="100%" height="180" viewBox="0 0 1200 180" preserveAspectRatio="none" style="position:absolute;inset:0;opacity:.20;mix-blend:screen;">
           <defs>
             <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
@@ -183,6 +184,10 @@
   </div>
 
 <script>
+// Home button
+const homeBtn=document.getElementById('homeButton');
+if(homeBtn){homeBtn.addEventListener('click',()=>{if(window.renderLanding&&window.MANIFEST){renderLanding(MANIFEST);window.scrollTo({top:0,behavior:'smooth'});}location.hash='';});}
+
 // ===== Language Name Guessing =====
 const LANGUAGE_NAME_MAP={
   en:"English",fr:"French",es:"Spanish",pt:"Portuguese",de:"German",zh:"Chinese",ru:"Russian",ar:"Arabic",hi:"Hindi",
@@ -208,7 +213,7 @@ const baseName=p=>{const seg=(p||'').split('/').pop()||'';return seg.replace(/\.
 const extFrom=p=> (p||'').split('.').pop()?.toLowerCase()||'';
 const hashFor=p=>'#file='+encodeURIComponent(p);
 const getHash=()=>{const m=location.hash.match(/#file=([^&]+)/);return m?decodeURIComponent(m[1]):null;};
-const escapeHtml=s=>s.replace(/[&<>"]|'/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+const escapeHtml=s=>s.replace(/[&<>"'] /g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]||c));
 const chooseUrl=f=>f.downloadCdn||f.downloadCDN||f.downloadRaw||f.url;
 const deriveCategory=f=>(f.path||'').split('/')[0]||'misc';
 function formatRepoName(name){if(!name) return '';const short=name.split('/').pop();return short.replace(/([a-z])([A-Z])/g,'$1 $2').trim();}
@@ -297,104 +302,4 @@ function renderRepoLanguages(repoIndex){
     return `<div class="card">
       <h3>${guessLangName(lang)}</h3>
       <div class="muted">${files.length} file${files.length===1?'':'s'}</div>
-      <div style="margin-top:8px"><button class="btn" data-open-lang="${lang}" data-repo="${repoIndex}">Browse</button></div>
-    </div>`;}).join('');
-  const back=`<div class="card"><h3>← Back</h3><div class="muted">Return to repositories</div><div style="margin-top:8px"><button class="btn" id="backRepos">Back</button></div></div>`;
-  $('langGrid').innerHTML=back+(cards||`<div class="muted">No languages found in this repository.</div>`);
-  $('landing').classList.remove('hide');$('files').classList.add('hide');
-  $('backRepos').onclick=()=>renderLanding(MANIFEST);
-  document.querySelectorAll('[data-open-lang]').forEach(b=>{b.onclick=()=>{const idx=parseInt(b.getAttribute('data-repo'),10);const lang=b.getAttribute('data-open-lang');const repo2=MANIFEST.repos[idx];const files=(repo2.languages[lang]||[]).map(x=>({...x,repo:repo2.name,url:chooseUrl(x)}));renderFiles(files,lang,null,repo2.name);};});
-}
-
-// ===== File list (chips + search + grouping) =====
-function categoryFromExt(e){
-  if(['json','geojson'].includes(e)) return 'json';
-  if(['md','markdown'].includes(e)) return 'md';
-  if(['csv','tsv'].includes(e)) return 'csv';
-  if(['png','jpg','jpeg','gif','webp','svg'].includes(e)) return 'images';
-  if(['mp3','wav','ogg','m4a','flac'].includes(e)) return 'audio';
-  if(['mp4','webm','mov','m4v'].includes(e)) return 'video';
-  if(['pdf'].includes(e)) return 'pdf';
-  if(['html','htm','xhtml'].includes(e)) return 'html';
-  return 'other';
-}
-
-function renderFiles(filesForLang,lang,preselectPath,repoName){
-  $('landing').classList.add('hide');$('files').classList.remove('hide');
-  $('crumbs').innerHTML=`<a href="#" id="back">Home</a> / ${formatRepoName(repoName||'')} / ${guessLangName(lang)}`;
-  $('back').onclick=e=>{e.preventDefault();const idx=(MANIFEST.repos||[]).findIndex(r=>r.name===(repoName||''));if(idx>=0) renderRepoLanguages(idx); else renderLanding(MANIFEST);};
-
-  const chipsEl=$('chips');const categories=[...new Set((filesForLang||[]).map(f=>deriveCategory(f)))].sort();let activeChip='All';chipsEl.innerHTML='';
-  const addChip=name=>{const c=document.createElement('button');c.className='chip'+(name===activeChip?' active':'');c.textContent=name;c.onclick=()=>{activeChip=name;renderList();updateChips();};chipsEl.appendChild(c);};
-  addChip('All');categories.forEach(addChip);
-  function updateChips(){[...chipsEl.querySelectorAll('.chip')].forEach(el=>el.classList.toggle('active',el.textContent===activeChip));}
-
-  const input=$('search');let q='';input.value='';input.oninput=()=>{q=input.value.trim().toLowerCase();renderList();};
-  window.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();input.focus();input.select();}});
-
-  const list=$('fileList');
-  let selectedCat='all';
-  const chipBar=document.getElementById('filters');
-  if(chipBar){chipBar.querySelectorAll('[data-cat]').forEach(btn=>{btn.onclick=()=>{selectedCat=btn.getAttribute('data-cat');renderList();};});}
-  const groupToggle=document.getElementById('groupToggle');
-  const isGrouped=()=>groupToggle&&groupToggle.checked; if(groupToggle){groupToggle.onchange=()=>renderList();groupToggle.checked=true;}
-
-  function renderList(){
-    const filtered=(filesForLang||[])
-      .filter(f=>chooseUrl(f))
-      .filter(f=>{const name=(f.path||'').split('/').pop();const matchText=!q||(f.path||'').toLowerCase().includes(q)||(name||'').toLowerCase().includes(q)||(f.repo||'').toLowerCase().includes(q);if(!matchText) return false;if(activeChip!=='All'){const catFolder=deriveCategory(f);if(catFolder.toLowerCase()!==activeChip.toLowerCase()) return false;} if(selectedCat==='all') return true; const cat=categoryFromExt(extFrom(f.path||'')); return cat===selectedCat;});
-
-    let rowsHtml='';
-    if(isGrouped()){
-      const groups=new Map();
-      for(const f of filtered){const b=baseName(f.path||'');if(!groups.has(b)) groups.set(b,[]);groups.get(b).push(f);} 
-      rowsHtml=Array.from(groups.entries()).map(([b,arr])=>{
-        const rep=arr[0];const cat=deriveCategory(rep);const fmts=arr.map(x=>extFrom(x.path||'')).map(e=>e.toUpperCase());
-        const buttons=arr.map(x=>{const e=extFrom(x.path||'');const url=x.url||chooseUrl(x);const label=e.toUpperCase();return `<button class='btn' data-open-ext data-url="${url}" data-name="${(x.path||'').split('/').pop()}">${label}</button>`;}).join('');
-        return `<div class='row' data-group="${encodeURIComponent(b)}">
-          <div class='row-main'>
-            <div class='name' title="${b}">${b}</div>
-            <div class='meta'>${cat} • ${rep.repo||''} • ${fmts.join(' • ')}</div>
-          </div>
-          <div class='toolbar'>${buttons}<button class='btn' data-preview-first>🔎 Preview</button></div>
-        </div>`;}).join('');
-    } else {
-      rowsHtml=filtered.map(f=>{const name=(f.path||'').split('/').pop();const cat=deriveCategory(f);const url=f.url||chooseUrl(f);return `<div class='row' data-path="${encodeURIComponent(f.path)}">
-          <div class='row-main'>
-            <div class='name' title="${name}">${name}</div>
-            <div class='meta'>${cat} • ${f.repo||''} • ${humanBytes(f.size)}</div>
-          </div>
-          <div class='toolbar'>
-            <button class='btn' data-preview>🔎 Preview</button>
-            <button class='btn' data-download>⬇️ Download</button>
-            <a class='btn' href="${url}" target="_blank" rel="noopener">↗ View</a>
-          </div>
-        </div>`;}).join('');
-    }
-
-    list.innerHTML=rowsHtml||`<div class='muted'>No results.</div>`;
-
-    if(isGrouped()){
-      list.querySelectorAll('[data-open-ext]').forEach(btn=>{const url=btn.getAttribute('data-url');const name=btn.getAttribute('data-name');btn.onclick=()=>previewFile(url,name);});
-      list.querySelectorAll('[data-preview-first]').forEach(btn=>{btn.onclick=()=>{const row=btn.closest('.row');const first=row&&row.querySelector('[data-open-ext]');if(first){first.click();}};});
-    } else {
-      list.querySelectorAll('.row').forEach(row=>{const p=decodeURIComponent(row.getAttribute('data-path'));const f=(filesForLang||[]).find(x=>x.path===p);if(!f) return;const url=f.url||chooseUrl(f);const name=(f.path||'').split('/').pop();row.querySelector('[data-preview]').onclick=()=>{history.replaceState(null,'',hashFor(p));previewFile(url,name);};row.querySelector('[data-download]').onclick=()=>{const n=name;fetch(url).then(r=>r.blob()).then(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;document.body.appendChild(a);a.click();URL.revokeObjectURL(a.href);a.remove();});};});
-    }
-
-    if(preselectPath&&!isGrouped()){const sel=list.querySelector(`.row[data-path="${encodeURIComponent(preselectPath)}"]`);if(sel){sel.scrollIntoView({block:'center'});sel.querySelector('[data-preview]').click();}preselectPath=null;}
-  }
-  renderList();
-}
-
-// ===== Router =====
-window.addEventListener('hashchange',()=>{const wanted=getHash();if(!wanted){hidePreview();return;}if($('files').classList.contains('hide')){if(!MANIFEST) return;const all=flattenAllFiles(MANIFEST);const f=all.find(x=>x.path===wanted);if(!f) return;const repo=MANIFEST.repos.find(r=>r.name===f.repo);if(!repo) return;const files=(repo.languages[f.lang]||[]).map(x=>({...x,repo:repo.name,url:chooseUrl(x)}));renderFiles(files,f.lang,wanted,repo.name);}});
-
-// ===== Boot =====
-loadManifest().then(renderLanding).catch(e=>{const d=document.createElement('div');d.className='err';d.textContent=`Error loading manifest: ${e.message}`;document.body.prepend(d);});
-
-// surface script errors so we don't get a silent blank page
-window.addEventListener('error',(e)=>{const div=document.createElement('div');div.className='err';div.textContent=`Script error: ${e.message}`;document.body.prepend(div);});
-</script>
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-</body>
-</html>
+      <div style="margin-top:8px"><button class="btn" data-open-lang="${lang}" data-repo="
