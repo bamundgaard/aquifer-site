@@ -1,9 +1,14 @@
-name: Build unified catalog manifest (BibleAquifer org)
+name: Build unified catalog manifest
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/build_manifest.yml'
   schedule:
-    - cron: '0 * * * *'  # hourly; adjust as needed
+    - cron: '0 * * * *'  # hourly
 
 permissions:
   contents: write
@@ -12,10 +17,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      ORG: BibleAquifer
-      INCLUDE_FORKS: "false"      # set "true" to include forks
-      INCLUDE_ARCHIVED: "false"   # set "true" to include archived repos
-      MAX_REPOS: "1000"           # safety cap
+      ORG_OR_USER: BibleAquifer   # account to crawl
+      INCLUDE_FORKS: "false"
+      INCLUDE_ARCHIVED: "false"
+      PER_PAGE: "100"
+      MAX_PAGES: "10"
+      # Optional back-compat list; detection works without this
+      LANGUAGE_FOLDERS_JSON: '["eng","fra","hin","por"]'
     steps:
       - name: Checkout site
         uses: actions/checkout@v4
@@ -34,7 +42,7 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Generate manifest from all repos in org
+      - name: Generate manifest from account repos
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -43,18 +51,19 @@ jobs:
           const https = require('https');
 
           const GH_TOKEN = process.env.GH_TOKEN;
-          const ORG = process.env.ORG || 'BibleAquifer';
-          const INCLUDE_FORKS = (process.env.INCLUDE_FORKS||'false').toLowerCase()==='true';
-          const INCLUDE_ARCHIVED = (process.env.INCLUDE_ARCHIVED||'false').toLowerCase()==='true';
-          const MAX_REPOS = parseInt(process.env.MAX_REPOS||'1000',10);
+          const ACCOUNT = process.env.ORG_OR_USER;
+          const INCLUDE_FORKS = (process.env.INCLUDE_FORKS || 'false').toLowerCase() === 'true';
+          const INCLUDE_ARCHIVED = (process.env.INCLUDE_ARCHIVED || 'false').toLowerCase() === 'true';
+          const PER_PAGE = Math.max(1, parseInt(process.env.PER_PAGE || '100', 10));
+          const MAX_PAGES = Math.max(1, parseInt(process.env.MAX_PAGES || '10', 10));
+          const LANGUAGE_FOLDERS = new Set(JSON.parse(process.env.LANGUAGE_FOLDERS_JSON || '[]')); // optional
 
           const IGNORE = [
             /^README(\.md|\.txt)?$/i, /^LICENSE(\.md|\.txt)?$/i,
             /^\.github$/i, /^\.gitignore$/i, /^\.gitattributes$/i, /^\.DS_Store$/i,
             /^index(\.md|\.html)?$/i
           ];
-
-          function isIgnored(name){ return IGNORE.some(re => re.test(name)); }
+          const LANG_DIR_RE = /^(?:[a-z]{2,4})(?:[-_][a-z0-9]{2,8})?$/i; // en, eng, por, en-US, zh-Hans, etc.
 
           function gh(path){
             const opts = {
@@ -80,19 +89,24 @@ jobs:
             });
           }
 
-          async function listOrgRepos(org){
-            const all = [];
-            let page = 1;
-            while (true){
-              const {json} = await gh(`/orgs/${org}/repos?per_page=100&page=${page}&type=public&sort=full_name`);
-              if (!Array.isArray(json) || json.length===0) break;
-              all.push(...json);
-              if (json.length < 100) break;
-              page++;
-              if (all.length >= MAX_REPOS) break;
+          async function listAllReposForAccount(account){
+            const out = [];
+            async function pull(base){
+              for (let page=1; page<=MAX_PAGES; page++){
+                const path = `${base}?per_page=${PER_PAGE}&page=${page}&type=public&sort=full_name`;
+                const {json} = await gh(path);
+                if (!Array.isArray(json) || json.length === 0) break;
+                out.push(...json);
+                if (json.length < PER_PAGE) break;
+              }
             }
-            return all;
+            try { await pull(`/orgs/${account}/repos`); }
+            catch { await pull(`/users/${account}/repos`); }
+            return out;
           }
+
+          function isIgnored(name){ return IGNORE.some(re => re.test(name)); }
+          function looksLikeLangDir(name){ return LANGUAGE_FOLDERS.has(name) || LANG_DIR_RE.test(name); }
 
           async function listDir(owner, repo, path='', ref){
             const enc = path ? `/${encodeURIComponent(path).replace(/%2F/g,'/')}` : '';
@@ -103,9 +117,7 @@ jobs:
           async function walk(owner, repo, basePath, ref){
             const acc = [];
             async function recur(p){
-              let items;
-              try { items = await listDir(owner, repo, p, ref); }
-              catch(e){ return; }
+              let items; try { items = await listDir(owner, repo, p, ref); } catch { return; }
               for (const it of items){
                 if (it.type === 'dir') {
                   if (isIgnored(it.name)) continue;
@@ -126,54 +138,41 @@ jobs:
             return acc;
           }
 
-          function looksLikeLangFolder(name){
-            if (!name) return false;
-            // common: 2-3 letter codes with optional subtags (e.g., en, eng, fr, zh-Hans)
-            return /^[a-z]{2,3}([-_][a-z0-9]+)?$/i.test(name);
-          }
-
           (async ()=>{
-            const reposRaw = await listOrgRepos(ORG);
-            const repos = reposRaw
+            const allRepos = await listAllReposForAccount(ACCOUNT);
+            const repos = allRepos
               .filter(r => (INCLUDE_FORKS || !r.fork))
-              .filter(r => (INCLUDE_ARCHIVED || !r.archived))
-              .slice(0, MAX_REPOS);
+              .filter(r => (INCLUDE_ARCHIVED || !r.archived));
 
-            const manifest = { generatedAt: new Date().toISOString(), org: ORG, repos: [] };
+            const manifest = { generatedAt: new Date().toISOString(), account: ACCOUNT, repos: [] };
 
             for (const r of repos){
               const owner = r.owner.login;
               const repo = r.name;
-              const ref = r.default_branch || 'main';
+              const ref = r.default_branch || 'main'; // <- use each repo's default branch
 
-              let root = [];
-              try { root = await listDir(owner, repo, '', ref); } catch(e){ continue; }
+              // root listing
+              let root=[];
+              try { root = await listDir(owner, repo, '', ref); } catch { continue; }
 
               const languages = {};
-              // discover language folders at root
-              const langDirs = root.filter(x => x.type==='dir' && !isIgnored(x.name) && looksLikeLangFolder(x.name)).map(x=>x.name);
+
+              // 1) language dirs at root
+              const langDirs = root.filter(x => x.type==='dir' && !isIgnored(x.name) && looksLikeLangDir(x.name)).map(x=>x.name);
               for (const ld of langDirs){
-                try {
-                  languages[ld] = await walk(owner, repo, ld, ref);
-                } catch(_) {}
+                try { languages[ld] = await walk(owner, repo, ld, ref); } catch {}
               }
 
-              // also include non-language top-level dirs as _datasets (categories)
-              const datasetDirs = root
-                .filter(x => x.type==='dir' && !isIgnored(x.name) && !langDirs.includes(x.name))
-                .map(x=>x.name);
-
-              if (datasetDirs.length){
+              // 2) other top-level dirs into _datasets (keeps <dir>/... in path)
+              const otherDirs = root.filter(x => x.type==='dir' && !isIgnored(x.name) && !langDirs.includes(x.name)).map(x=>x.name);
+              if (otherDirs.length){
                 languages['_datasets'] = languages['_datasets'] || [];
-                for (const dd of datasetDirs){
-                  try {
-                    const files = await walk(owner, repo, dd, ref);
-                    languages['_datasets'].push(...files); // keep "<dir>/..." in path
-                  } catch(_) {}
+                for (const d of otherDirs){
+                  try { languages['_datasets'].push(...await walk(owner, repo, d, ref)); } catch {}
                 }
               }
 
-              // if nothing found yet, try files at root
+              // 3) if nothing yet, include root files (as _datasets)
               if (!Object.keys(languages).length){
                 const topFiles = root
                   .filter(x => x.type==='file' && !isIgnored(x.name))
@@ -187,7 +186,6 @@ jobs:
                 if (topFiles.length) languages['_datasets'] = topFiles;
               }
 
-              // only add repos that actually contributed something
               const total = Object.values(languages).reduce((n, arr)=> n + (arr?.length||0), 0);
               if (total > 0){
                 manifest.repos.push({ name: `${owner}/${repo}`, branch: ref, languages });
@@ -196,14 +194,14 @@ jobs:
 
             fs.mkdirSync('docs/data', { recursive: true });
             fs.writeFileSync('docs/data/manifest.json', JSON.stringify(manifest, null, 2));
-            console.log(`✅ wrote docs/data/manifest.json with ${manifest.repos.length} repos from org ${ORG}`);
+            console.log(`✅ wrote docs/data/manifest.json with ${manifest.repos.length} repos from ${ACCOUNT}`);
           })().catch(err=>{ console.error(err); process.exit(1); });
           NODE
 
-      - name: Commit manifest
+      - name: Auto-commit manifest
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "Update unified catalog manifest [skip ci]"
           file_pattern: docs/data/manifest.json
-          # Optionally add this if you still hit non-fast-forward races:
+          # If your branch moves during the run, uncomment the next line:
           # push_options: '--force-with-lease'
